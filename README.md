@@ -2,7 +2,7 @@
 
 A modern web interface for viewing and managing [beads](https://github.com/steveyegge/beads) issue tracking databases.
 
-![Beads UI Screenshot](public/screenshot.png)
+![Beads UI Intro](public/intro.gif)
 
 ## Quick Start
 
