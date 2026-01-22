@@ -1,28 +1,44 @@
 import { NextRequest } from "next/server"
 import { watch, type FSWatcher } from "fs"
 import { resolveDbPath } from "@/lib/db"
-import { dirname, resolve, normalize } from "path"
+import { dirname, resolve, relative } from "path"
+import { homedir } from "os"
 
-// Additional validation for the database directory path
+// Get the list of allowed base directories for watching
+function getAllowedBaseDirs(): string[] {
+  return [
+    homedir(), // User's home directory
+    process.cwd(), // Current working directory
+    "/tmp", // Temporary directory (for tests)
+  ]
+}
+
+// Validate the database directory is within allowed base directories
 function isValidDbDir(dbDir: string): boolean {
-  const normalizedPath = normalize(resolve(dbDir))
+  const normalizedDir = resolve(dbDir)
 
   // Check for null bytes
   if (dbDir.includes("\0")) {
     return false
   }
 
-  // Must be absolute
-  if (!normalizedPath.startsWith("/")) {
+  // Must be a .beads directory
+  if (!normalizedDir.endsWith(".beads")) {
     return false
   }
 
-  // Must be a .beads directory (common pattern for beads databases)
-  if (!normalizedPath.includes(".beads") && !normalizedPath.includes("beads")) {
-    return false
+  // Verify the path is within one of the allowed base directories
+  for (const baseDir of getAllowedBaseDirs()) {
+    const normalizedBase = resolve(baseDir)
+    const relativePath = relative(normalizedBase, normalizedDir)
+
+    // If relative path doesn't start with "..", target is within base
+    if (!relativePath.startsWith("..") && !relativePath.startsWith("/")) {
+      return true
+    }
   }
 
-  return true
+  return false
 }
 
 // Keep track of active watchers per database path

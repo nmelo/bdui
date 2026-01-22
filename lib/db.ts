@@ -1,38 +1,48 @@
 import { readFile, access, stat } from "fs/promises"
 import { constants } from "fs"
-import { join, dirname, basename, resolve, normalize } from "path"
+import { join, dirname, basename, resolve, normalize, relative } from "path"
 import { homedir } from "os"
 
-// Validate that a path is safe (no path traversal)
-function isPathSafe(inputPath: string): boolean {
-  // Normalize and resolve the path
-  const normalizedPath = normalize(resolve(inputPath))
+// Get the list of allowed base directories for database paths
+function getAllowedBaseDirs(): string[] {
+  return [
+    homedir(), // User's home directory
+    process.cwd(), // Current working directory
+    "/tmp", // Temporary directory (for tests)
+  ]
+}
 
-  // Check for null bytes (used in some path injection attacks)
-  if (inputPath.includes("\0")) {
+// Check if a path is safely contained within an allowed base directory
+function isPathWithinAllowedDirs(targetPath: string): boolean {
+  const normalizedTarget = resolve(targetPath)
+
+  // Check for null bytes (path injection attack vector)
+  if (targetPath.includes("\0")) {
     return false
   }
 
-  // Ensure the path is absolute after resolution
-  if (!normalizedPath.startsWith("/")) {
-    return false
+  // Verify the path is within one of the allowed base directories
+  for (const baseDir of getAllowedBaseDirs()) {
+    const normalizedBase = resolve(baseDir)
+    const relativePath = relative(normalizedBase, normalizedTarget)
+
+    // If relative path doesn't start with "..", target is within base
+    if (!relativePath.startsWith("..") && !relativePath.startsWith("/")) {
+      return true
+    }
   }
 
-  return true
+  return false
 }
 
 // Validate that resolved path is a valid .db file path
 function isValidDbPath(dbPath: string): boolean {
-  if (!isPathSafe(dbPath)) {
-    return false
-  }
-
   // Must end with .db
   if (!dbPath.endsWith(".db")) {
     return false
   }
 
-  return true
+  return isPathWithinAllowedDirs(dbPath)
 }
 
 export interface Workspace {
@@ -47,16 +57,23 @@ const REGISTRY_PATH = join(homedir(), ".beads", "registry.json")
 
 // Find nearest .beads directory walking up from cwd
 async function findNearestBeadsDir(startPath: string): Promise<string | null> {
-  // Validate and normalize the start path
-  if (!isPathSafe(startPath)) {
-    console.error("Invalid start path:", startPath)
+  // Validate the start path is within allowed directories
+  if (!isPathWithinAllowedDirs(startPath)) {
+    console.error("Start path not within allowed directories:", startPath)
     return null
   }
 
   let current = resolve(startPath)
 
-  while (current !== "/") {
+  while (current !== "/" && isPathWithinAllowedDirs(current)) {
     const beadsDir = join(current, ".beads")
+
+    // Verify beadsDir is still within allowed directories before accessing
+    if (!isPathWithinAllowedDirs(beadsDir)) {
+      current = dirname(current)
+      continue
+    }
+
     try {
       const stats = await stat(beadsDir)
       if (stats.isDirectory()) {
@@ -102,12 +119,12 @@ export async function resolveDbPath(
 ): Promise<string | null> {
   // 1. Explicit path
   if (explicitPath) {
-    // Validate the path before using it
-    if (!isValidDbPath(explicitPath)) {
-      console.error("Invalid db path:", explicitPath)
+    const resolvedPath = resolve(explicitPath)
+    // Validate the path is within allowed directories
+    if (!isValidDbPath(resolvedPath)) {
+      console.error("Invalid db path (outside allowed directories):", explicitPath)
       return null
     }
-    const resolvedPath = resolve(explicitPath)
     try {
       await access(resolvedPath, constants.R_OK)
       return resolvedPath
@@ -119,13 +136,15 @@ export async function resolveDbPath(
 
   // Check BEADS_DB environment variable
   const envPath = process.env.BEADS_DB
-  if (envPath && isValidDbPath(envPath)) {
+  if (envPath) {
     const resolvedEnvPath = resolve(envPath)
-    try {
-      await access(resolvedEnvPath, constants.R_OK)
-      return resolvedEnvPath
-    } catch {
-      console.error("BEADS_DB path not accessible:", resolvedEnvPath)
+    if (isValidDbPath(resolvedEnvPath)) {
+      try {
+        await access(resolvedEnvPath, constants.R_OK)
+        return resolvedEnvPath
+      } catch {
+        console.error("BEADS_DB path not accessible:", resolvedEnvPath)
+      }
     }
   }
 
