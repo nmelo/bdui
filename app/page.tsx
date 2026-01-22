@@ -161,6 +161,7 @@ function BeadsEpicsViewer() {
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null)
   const [epics, setEpics] = useState<Epic[]>([])
   const [isLoading, setIsLoading] = useState(true)
+  const [loadingWorkspaceId, setLoadingWorkspaceId] = useState<string | null>(null)
   const [, startTransition] = useTransition()
   const [filters, setFilters] = useState<Filters>({
     status: "all",
@@ -241,6 +242,7 @@ function BeadsEpicsViewer() {
 
   // Handle workspace change and persist to cookie
   const handleWorkspaceChange = useCallback((workspace: Workspace) => {
+    setLoadingWorkspaceId(workspace.id)
     setCurrentWorkspace(workspace)
     setWorkspaceCookie(workspace.id)
   }, [])
@@ -257,6 +259,7 @@ function BeadsEpicsViewer() {
       setEpics([])
     } finally {
       setIsLoading(false)
+      setLoadingWorkspaceId(null)
     }
   }, [currentWorkspace?.databasePath])
 
@@ -411,6 +414,7 @@ function BeadsEpicsViewer() {
         onWorkspaceChange={handleWorkspaceChange}
         isDark={isDark}
         onThemeToggle={handleThemeToggle}
+        loadingWorkspaceId={loadingWorkspaceId}
       />
 
       <main className="max-w-6xl mx-auto px-6 py-8">

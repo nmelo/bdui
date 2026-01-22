@@ -1,6 +1,6 @@
 "use client"
 
-import { Moon, Sun, Circle } from "lucide-react"
+import { Moon, Sun, Circle, Loader2 } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import type { Workspace } from "@/lib/types"
 
@@ -10,6 +10,7 @@ interface HeaderProps {
   onWorkspaceChange: (workspace: Workspace) => void
   isDark: boolean
   onThemeToggle: () => void
+  loadingWorkspaceId?: string | null
 }
 
 export function Header({
@@ -18,6 +19,7 @@ export function Header({
   onWorkspaceChange,
   isDark,
   onThemeToggle,
+  loadingWorkspaceId,
 }: HeaderProps) {
   return (
     <header className="border-b border-border bg-card">
@@ -37,13 +39,16 @@ export function Header({
               <button
                 key={workspace.id}
                 onClick={() => onWorkspaceChange(workspace)}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1.5 ${
                   workspace.id === currentWorkspace.id
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                 }`}
               >
                 {workspace.name}
+                {loadingWorkspaceId === workspace.id && (
+                  <Loader2 className="h-3 w-3 animate-spin" />
+                )}
               </button>
             ))}
           </div>
