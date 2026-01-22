@@ -8,10 +8,11 @@ import { BeadDetailModal } from "@/components/bead-detail-modal"
 import { FilterBar, type Filters, type SortOption } from "@/components/filter-bar"
 import { getEpics } from "@/actions/epics"
 import { getWorkspaces } from "@/actions/workspaces"
-import { updateBeadStatus, updateBeadPriority, updateBeadParent, addComment as addCommentAction } from "@/actions/beads"
+import { updateBeadStatus, updateBeadPriority, updateBeadParent, addComment as addCommentAction, deleteBead } from "@/actions/beads"
 import { useSSE } from "@/hooks/use-sse"
 import { getWorkspaceCookie, setWorkspaceCookie } from "@/lib/workspace-cookie"
 import type { Workspace, Epic, Bead, BeadStatus, BeadPriority, Comment } from "@/lib/types"
+import { toast } from "sonner"
 
 // Extract all unique assignees from epics recursively
 function extractAssignees(epics: Epic[]): string[] {
@@ -391,6 +392,22 @@ function BeadsEpicsViewer() {
     })
   }
 
+  const handleDelete = useCallback((beadId: string) => {
+    // Close the modal first
+    handleModalOpenChange(false)
+    // Delete on server and reload
+    startTransition(async () => {
+      const result = await deleteBead(beadId, currentWorkspace?.databasePath)
+      if (result.success) {
+        toast.success("Bead deleted")
+      } else {
+        console.error("Failed to delete bead:", result.error)
+        toast.error("Failed to delete bead", { description: result.error })
+      }
+      loadEpics()
+    })
+  }, [handleModalOpenChange, currentWorkspace?.databasePath, loadEpics])
+
   // Drag and drop handlers
   const handleDragStart = useCallback((beadId: string) => {
     setDraggedBeadId(beadId)
@@ -492,8 +509,10 @@ function BeadsEpicsViewer() {
         onOpenChange={handleModalOpenChange}
         onUpdate={handleBeadUpdate}
         onAddComment={handleAddComment}
+        onDelete={handleDelete}
         parentPath={parentPath}
         dbPath={currentWorkspace?.databasePath}
+        assignees={assignees}
       />
     </div>
   )

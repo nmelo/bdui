@@ -9,6 +9,7 @@ import {
   updateType as bdUpdateType,
   updateParent as bdUpdateParent,
   closeBead as bdCloseBead,
+  deleteBead as bdDeleteBead,
   addComment as bdAddComment,
   unmapPriority,
   type BdOptions,
@@ -163,6 +164,22 @@ export async function updateBeadParent(
     return { success: true }
   } catch (error) {
     console.error("Failed to update parent:", error)
+    return { success: false, error: String(error) }
+  }
+}
+
+// Delete a bead
+export async function deleteBead(
+  id: string,
+  dbPath?: string
+): Promise<{ success: boolean; error?: string }> {
+  const options: BdOptions = dbPath ? { db: dbPath } : {}
+
+  try {
+    await bdDeleteBead(id, options)
+    return { success: true }
+  } catch (error) {
+    console.error("Failed to delete bead:", error)
     return { success: false, error: String(error) }
   }
 }

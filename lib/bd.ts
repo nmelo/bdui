@@ -182,6 +182,11 @@ export async function reopenBead(id: string, options: BdOptions = {}): Promise<v
   await bdExecRaw(["update", id, "--status", "open"], options)
 }
 
+// Delete a bead
+export async function deleteBead(id: string, options: BdOptions = {}): Promise<void> {
+  await bdExecRaw(["delete", id, "--force"], options)
+}
+
 // List all beads (not just epics)
 export async function listBeads(options: BdOptions = {}): Promise<BdBead[]> {
   return bdExec<BdBead[]>(["list", "--status", "all"], options)
