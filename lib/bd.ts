@@ -54,7 +54,7 @@ export interface BdWorkspace {
 
 // Build argument array for bd command (prevents command injection)
 function buildArgs(args: string[], options: BdOptions, includeJson: boolean): string[] {
-  const result: string[] = ["--no-daemon"] // Skip daemon to avoid startup delay
+  const result: string[] = ["--no-daemon", "--allow-stale"] // Skip daemon and staleness check
   if (options.db) {
     result.push("--db", options.db)
   }
