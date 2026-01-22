@@ -2,6 +2,7 @@
 
 import {
   listEpics,
+  listBeads,
   showBead,
   getComments,
   getEpicStatuses,
@@ -123,8 +124,47 @@ async function buildEpicHierarchy(options: BdOptions = {}): Promise<Epic[]> {
     }
   }
 
-  // Return only top-level epics (those without parents or whose parents are not epics)
-  return Array.from(epicMap.values()).filter((epic) => !childEpicIds.has(epic.id))
+  // Get top-level epics (those without parents or whose parents are not epics)
+  const topLevelEpics = Array.from(epicMap.values()).filter((epic) => !childEpicIds.has(epic.id))
+
+  // Now fetch all beads to find orphans (beads with no parent that aren't epics)
+  const allBeads = await listBeads(options)
+  const epicIds = new Set(bdEpics.map((e) => e.id))
+  const beadsUnderEpics = new Set<string>()
+
+  // Track all beads that are children of epics
+  for (const { epic: bdEpic } of epicsWithDetails) {
+    if (bdEpic.dependents) {
+      for (const dep of bdEpic.dependents) {
+        beadsUnderEpics.add(dep.id)
+      }
+    }
+  }
+
+  // Find orphan beads: not an epic, and not a child of any epic
+  const orphanBeads = allBeads.filter(
+    (bead) => !epicIds.has(bead.id) && !beadsUnderEpics.has(bead.id) && !bead.parent
+  )
+
+  // If there are orphan beads, create a synthetic epic to hold them
+  if (orphanBeads.length > 0) {
+    const orphanEpic: Epic = {
+      id: "__orphans__",
+      type: "epic",
+      title: "Beads (No Epic)",
+      description: "Beads without a parent epic",
+      status: "open",
+      priority: "low",
+      assignee: "",
+      labels: [],
+      comments: [],
+      children: orphanBeads.map((b) => convertBead(b)),
+      childEpics: [],
+    }
+    topLevelEpics.push(orphanEpic)
+  }
+
+  return topLevelEpics
 }
 
 // Get all epics with their hierarchy
