@@ -4,6 +4,21 @@ A modern web interface for viewing and managing [beads](https://github.com/steve
 
 ![Beads UI Screenshot](public/screenshot.png)
 
+## Quick Start
+
+**Homebrew:**
+```bash
+brew install nmelo/tap/beads-ui
+beads-ui
+```
+
+**Docker:**
+```bash
+docker run -p 3000:3000 -v ~/.config/beads-ui:/root/.config/beads-ui ghcr.io/nmelo/beads-ui
+```
+
+Then open http://localhost:3000
+
 ## Features
 
 ### Core Functionality
