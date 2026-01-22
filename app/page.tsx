@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useTransition, useCallback } from "react"
+import { useState, useEffect, useMemo, useTransition, useCallback, Suspense } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import { EpicTree } from "@/components/epic-tree"
@@ -150,7 +150,7 @@ function findBeadById(epics: Epic[], beadId: string): Bead | null {
   return null
 }
 
-export default function BeadsEpicsViewer() {
+function BeadsEpicsViewer() {
   const [isDark, setIsDark] = useState(true)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
   const [currentWorkspace, setCurrentWorkspace] = useState<Workspace | null>(null)
@@ -407,5 +407,13 @@ export default function BeadsEpicsViewer() {
         dbPath={currentWorkspace?.databasePath}
       />
     </div>
+  )
+}
+
+export default function Page() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-background flex items-center justify-center text-muted-foreground">Loading...</div>}>
+      <BeadsEpicsViewer />
+    </Suspense>
   )
 }
