@@ -82,6 +82,10 @@ async function bdExec<T>(args: string[], options: BdOptions = {}): Promise<T> {
     return JSON.parse(stdout) as T
   } catch (error: unknown) {
     const execError = error as { stdout?: string; stderr?: string; message?: string }
+    // Suppress "context canceled" errors during shutdown
+    if (execError.message?.includes("context canceled") || execError.stderr?.includes("context canceled")) {
+      throw error
+    }
     console.error("bd command failed: bd", execArgs.join(" "))
     console.error("Error:", execError.message)
     if (execError.stderr) {
