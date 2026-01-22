@@ -107,7 +107,8 @@ function EpicRow({
 
   // Calculate left margin based on depth (for nested epics)
   const depthMargin = depth * 12
-  const borderColor = depthBorderColors[Math.min(depth, depthBorderColors.length - 1)]
+  const isStandalone = epic.id === "_standalone"
+  const borderColor = isStandalone ? "border-l-blue-400" : depthBorderColors[Math.min(depth, depthBorderColors.length - 1)]
   const { bg, shadow } = depthStyles[Math.min(depth, depthStyles.length - 1)]
 
   return (
@@ -137,7 +138,7 @@ function EpicRow({
           )}
         </div>
 
-        <CopyableId id={epic.id} className="w-28 shrink-0" />
+        {!isStandalone && <CopyableId id={epic.id} className="w-28 shrink-0" />}
 
         <span className="font-medium text-foreground flex-1 truncate">
           {epic.title}

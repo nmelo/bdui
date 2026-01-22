@@ -149,7 +149,7 @@ async function buildEpicHierarchy(options: BdOptions = {}): Promise<Epic[]> {
   // If there are orphan beads, create a synthetic epic to hold them
   if (orphanBeads.length > 0) {
     const orphanEpic: Epic = {
-      id: "__orphans__",
+      id: "_standalone",
       type: "epic",
       title: "Beads (No Epic)",
       description: "Beads without a parent epic",
