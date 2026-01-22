@@ -113,12 +113,16 @@ async function buildEpicHierarchy(options: BdOptions = {}): Promise<Epic[]> {
           // This is a child epic
           const childEpic = epicMap.get(dependent.id)
           if (childEpic) {
+            // Update parentId to match the actual hierarchy (dependents relationship)
+            childEpic.parentId = epic.id
             epic.childEpics!.push(childEpic)
             childEpicIds.add(dependent.id)
           }
         } else {
-          // Regular bead
-          epic.children.push(convertBead(dependent))
+          // Regular bead - set parentId to this epic
+          const childBead = convertBead(dependent)
+          childBead.parentId = epic.id
+          epic.children.push(childBead)
         }
       }
     }

@@ -11,6 +11,7 @@ interface HeaderProps {
   isDark: boolean
   onThemeToggle: () => void
   loadingWorkspaceId?: string | null
+  isPending?: boolean
 }
 
 export function Header({
@@ -20,6 +21,7 @@ export function Header({
   isDark,
   onThemeToggle,
   loadingWorkspaceId,
+  isPending,
 }: HeaderProps) {
   return (
     <header className="border-b border-border bg-card">
@@ -54,15 +56,20 @@ export function Header({
           </div>
         </div>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          onClick={onThemeToggle}
-          className="text-muted-foreground hover:text-foreground"
-        >
-          {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
-          <span className="sr-only">Toggle theme</span>
-        </Button>
+        <div className="flex items-center gap-2">
+          {isPending && (
+            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+          )}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={onThemeToggle}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            {isDark ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
+            <span className="sr-only">Toggle theme</span>
+          </Button>
+        </div>
       </div>
     </header>
   )

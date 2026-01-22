@@ -178,7 +178,7 @@ function BeadsEpicsViewer() {
   const [epics, setEpics] = useState<Epic[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [loadingWorkspaceId, setLoadingWorkspaceId] = useState<string | null>(null)
-  const [, startTransition] = useTransition()
+  const [isPending, startTransition] = useTransition()
   const [filters, setFilters] = useState<Filters>({
     status: "all",
     assignee: "all",
@@ -438,6 +438,7 @@ function BeadsEpicsViewer() {
         isDark={isDark}
         onThemeToggle={handleThemeToggle}
         loadingWorkspaceId={loadingWorkspaceId}
+        isPending={isPending}
       />
 
       <main className="max-w-6xl mx-auto px-6 py-8">
