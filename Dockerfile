@@ -21,6 +21,10 @@ RUN pnpm build
 FROM node:20-alpine AS runner
 WORKDIR /app
 
+LABEL org.opencontainers.image.source="https://github.com/nmelo/bdui"
+LABEL org.opencontainers.image.description="Web interface for viewing and managing beads databases"
+LABEL org.opencontainers.image.licenses="MIT"
+
 ENV NODE_ENV=production
 ENV PORT=3000
 ENV HOSTNAME=0.0.0.0
