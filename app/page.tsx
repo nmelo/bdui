@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useMemo, useTransition, useCallback, Suspense } from "react"
+import { useState, useEffect, useMemo, useTransition, useCallback, Suspense, useRef } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import { EpicTree } from "@/components/epic-tree"
@@ -174,6 +174,9 @@ function BeadsEpicsViewer() {
   const [draggedBeadId, setDraggedBeadId] = useState<string | null>(null)
   const [dragOverEpicId, setDragOverEpicId] = useState<string | null>(null)
 
+  // Skip SSE reloads briefly after optimistic updates
+  const skipNextSSEReload = useRef(false)
+
   // URL-based expanded state
   const searchParams = useSearchParams()
   const router = useRouter()
@@ -263,10 +266,18 @@ function BeadsEpicsViewer() {
     }
   }, [currentWorkspace, loadEpics])
 
-  // Subscribe to real-time database changes
+  // Subscribe to real-time database changes (skip if we just did an optimistic update)
+  const handleSSEChange = useCallback(() => {
+    if (skipNextSSEReload.current) {
+      skipNextSSEReload.current = false
+      return
+    }
+    loadEpics()
+  }, [loadEpics])
+
   useSSE({
     dbPath: currentWorkspace?.databasePath,
-    onChange: loadEpics,
+    onChange: handleSSEChange,
     enabled: !!currentWorkspace,
   })
 
@@ -310,7 +321,8 @@ function BeadsEpicsViewer() {
   }
 
   const handleStatusChange = (beadId: string, status: BeadStatus) => {
-    // Optimistic update
+    // Optimistic update - skip next SSE reload since we already have the new state
+    skipNextSSEReload.current = true
     updateBeadInEpics(beadId, (bead) => ({ ...bead, status }))
     // Server update
     startTransition(async () => {
@@ -324,7 +336,8 @@ function BeadsEpicsViewer() {
   }
 
   const handlePriorityChange = (beadId: string, priority: BeadPriority) => {
-    // Optimistic update
+    // Optimistic update - skip next SSE reload since we already have the new state
+    skipNextSSEReload.current = true
     updateBeadInEpics(beadId, (bead) => ({ ...bead, priority }))
     // Server update
     startTransition(async () => {
@@ -342,7 +355,8 @@ function BeadsEpicsViewer() {
   }
 
   const handleAddComment = (beadId: string, comment: Comment) => {
-    // Optimistic update
+    // Optimistic update - skip next SSE reload since we already have the new state
+    skipNextSSEReload.current = true
     updateBeadInEpics(beadId, (bead) => ({
       ...bead,
       comments: [...bead.comments, comment],
@@ -376,12 +390,15 @@ function BeadsEpicsViewer() {
     // "_standalone" means remove parent (set to null)
     const newParentId = targetEpicId === "_standalone" ? null : targetEpicId
 
+    // Skip SSE reload - we'll reload manually after the update
+    skipNextSSEReload.current = true
+
     startTransition(async () => {
       const result = await updateBeadParent(beadId, newParentId, currentWorkspace?.databasePath)
       if (!result.success) {
         console.error("Failed to move bead:", result.error)
       }
-      // SSE will trigger refresh, but also reload manually for immediate feedback
+      // Reload to show the moved bead in its new location
       loadEpics()
     })
   }, [currentWorkspace?.databasePath, loadEpics])

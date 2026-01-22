@@ -5,7 +5,7 @@ import React from "react"
 import {
   CheckCircle2,
   Circle,
-  Loader2,
+  CircleDot,
   Bug,
   Wrench,
   Sparkles,
@@ -76,7 +76,7 @@ const statusConfig: Record<BeadStatus, { label: string; className: string; icon:
   in_progress: {
     label: "In Progress",
     className: "bg-amber-500/20 text-amber-400 border-amber-500/40",
-    icon: <Loader2 className="h-3 w-3 animate-spin" />,
+    icon: <CircleDot className="h-3 w-3" />,
   },
   closed: {
     label: "Closed",
