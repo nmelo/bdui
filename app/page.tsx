@@ -44,8 +44,13 @@ function matchesBead(bead: Bead, filters: Filters): boolean {
   if (filters.assignee !== "all" && bead.assignee !== filters.assignee) {
     return false
   }
-  if (filters.search && !bead.title.toLowerCase().includes(filters.search.toLowerCase())) {
-    return false
+  if (filters.search) {
+    const searchLower = filters.search.toLowerCase()
+    const matchesTitle = bead.title.toLowerCase().includes(searchLower)
+    const matchesId = bead.id.toLowerCase().includes(searchLower)
+    if (!matchesTitle && !matchesId) {
+      return false
+    }
   }
   return true
 }
