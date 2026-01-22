@@ -75,7 +75,7 @@ async function bdExec<T>(args: string[], options: BdOptions = {}): Promise<T> {
       maxBuffer: 10 * 1024 * 1024, // 10MB buffer
     })
 
-    if (stderr && !stderr.includes("Warning")) {
+    if (stderr && !stderr.includes("Warning") && !stderr.includes("Staleness check skipped")) {
       console.error("bd stderr:", stderr)
     }
 
