@@ -14,6 +14,12 @@ interface EpicTreeProps {
   onBeadClick: (bead: Bead) => void
   onStatusChange: (beadId: string, status: BeadStatus) => void
   onPriorityChange: (beadId: string, priority: BeadPriority) => void
+  onBeadMove?: (beadId: string, targetEpicId: string) => void
+  dragOverEpicId?: string | null
+  onDragOver?: (epicId: string | null) => void
+  onDragStart?: (beadId: string) => void
+  onDragEnd?: () => void
+  draggedBeadId?: string | null
 }
 
 // Depth-based left border colors
@@ -59,7 +65,20 @@ function getAggregatedCounts(epic: Epic): { closed: number; total: number } {
   return { closed, total }
 }
 
-export function EpicTree({ epics, expandedEpics, onToggleEpic, onBeadClick, onStatusChange, onPriorityChange }: EpicTreeProps) {
+export function EpicTree({
+  epics,
+  expandedEpics,
+  onToggleEpic,
+  onBeadClick,
+  onStatusChange,
+  onPriorityChange,
+  onBeadMove,
+  dragOverEpicId,
+  onDragOver,
+  onDragStart,
+  onDragEnd,
+  draggedBeadId,
+}: EpicTreeProps) {
   return (
     <div className="space-y-3">
       {epics.map((epic, index) => (
@@ -72,6 +91,12 @@ export function EpicTree({ epics, expandedEpics, onToggleEpic, onBeadClick, onSt
           onBeadClick={onBeadClick}
           onStatusChange={onStatusChange}
           onPriorityChange={onPriorityChange}
+          onBeadMove={onBeadMove}
+          dragOverEpicId={dragOverEpicId}
+          onDragOver={onDragOver}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          draggedBeadId={draggedBeadId}
         />
       ))}
     </div>
@@ -86,6 +111,12 @@ interface EpicRowProps {
   onBeadClick: (bead: Bead) => void
   onStatusChange: (beadId: string, status: BeadStatus) => void
   onPriorityChange: (beadId: string, priority: BeadPriority) => void
+  onBeadMove?: (beadId: string, targetEpicId: string) => void
+  dragOverEpicId?: string | null
+  onDragOver?: (epicId: string | null) => void
+  onDragStart?: (beadId: string) => void
+  onDragEnd?: () => void
+  draggedBeadId?: string | null
 }
 
 function EpicRow({
@@ -96,6 +127,12 @@ function EpicRow({
   onBeadClick,
   onStatusChange,
   onPriorityChange,
+  onBeadMove,
+  dragOverEpicId,
+  onDragOver,
+  onDragStart,
+  onDragEnd,
+  draggedBeadId,
 }: EpicRowProps) {
   const isExpanded = expandedEpics.has(epic.id)
   const { closed: closedCount, total: totalCount } = getAggregatedCounts(epic)
@@ -123,8 +160,34 @@ function EpicRow({
     >
       <button
         type="button"
-        className="w-full px-4 py-4 flex items-center gap-3 hover:bg-white/5 transition-colors text-left"
+        className={cn(
+          "w-full px-4 py-4 flex items-center gap-3 hover:bg-white/5 transition-colors text-left",
+          dragOverEpicId === epic.id && "ring-2 ring-emerald-500 ring-inset bg-emerald-500/10"
+        )}
         onClick={() => onToggle(epic.id)}
+        onDragOver={(e) => {
+          e.preventDefault()
+          e.dataTransfer.dropEffect = "move"
+          onDragOver?.(epic.id)
+        }}
+        onDragLeave={(e) => {
+          // Only clear if leaving the button entirely (not entering a child)
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            onDragOver?.(null)
+          }
+        }}
+        onDrop={(e) => {
+          e.preventDefault()
+          try {
+            const data = JSON.parse(e.dataTransfer.getData("text/plain"))
+            if (data.sourceEpicId !== epic.id) {
+              onBeadMove?.(data.beadId, epic.id)
+            }
+          } catch {
+            // Invalid drag data
+          }
+          onDragOver?.(null)
+        }}
       >
         <div className="text-muted-foreground">
           {hasContent ? (
@@ -178,6 +241,12 @@ function EpicRow({
                   onBeadClick={onBeadClick}
                   onStatusChange={onStatusChange}
                   onPriorityChange={onPriorityChange}
+                  onBeadMove={onBeadMove}
+                  dragOverEpicId={dragOverEpicId}
+                  onDragOver={onDragOver}
+                  onDragStart={onDragStart}
+                  onDragEnd={onDragEnd}
+                  draggedBeadId={draggedBeadId}
                 />
               ))}
             </div>
@@ -191,6 +260,10 @@ function EpicRow({
                 onBeadClick={onBeadClick}
                 onStatusChange={onStatusChange}
                 onPriorityChange={onPriorityChange}
+                epicId={epic.id}
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
+                draggedBeadId={draggedBeadId}
               />
             </div>
           )}

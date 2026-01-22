@@ -54,7 +54,7 @@ export interface BdWorkspace {
 
 // Build argument array for bd command (prevents command injection)
 function buildArgs(args: string[], options: BdOptions, includeJson: boolean): string[] {
-  const result: string[] = []
+  const result: string[] = ["--no-daemon"] // Skip daemon to avoid startup delay
   if (options.db) {
     result.push("--db", options.db)
   }
@@ -216,6 +216,18 @@ export function unmapPriority(priority: "critical" | "high" | "medium" | "low"):
     case "low":
       return 3
   }
+}
+
+// Update bead parent (move bead to a different epic)
+export async function updateParent(
+  id: string,
+  parentId: string | null,
+  options: BdOptions = {}
+): Promise<void> {
+  const args = parentId
+    ? ["update", id, "--parent", parentId]
+    : ["update", id, "--parent", ""] // Empty string removes parent
+  await bdExecRaw(args, options)
 }
 
 // Map bd issue_type to our BeadType

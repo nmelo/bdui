@@ -7,6 +7,7 @@ import {
   updateTitle as bdUpdateTitle,
   updateDescription as bdUpdateDescription,
   updateType as bdUpdateType,
+  updateParent as bdUpdateParent,
   closeBead as bdCloseBead,
   addComment as bdAddComment,
   unmapPriority,
@@ -145,6 +146,23 @@ export async function addComment(
     return { success: true }
   } catch (error) {
     console.error("Failed to add comment:", error)
+    return { success: false, error: String(error) }
+  }
+}
+
+// Update bead parent (move to different epic or standalone)
+export async function updateBeadParent(
+  id: string,
+  parentId: string | null,
+  dbPath?: string
+): Promise<{ success: boolean; error?: string }> {
+  const options: BdOptions = dbPath ? { db: dbPath } : {}
+
+  try {
+    await bdUpdateParent(id, parentId, options)
+    return { success: true }
+  } catch (error) {
+    console.error("Failed to update parent:", error)
     return { success: false, error: String(error) }
   }
 }

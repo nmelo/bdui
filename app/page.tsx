@@ -8,7 +8,7 @@ import { BeadDetailModal } from "@/components/bead-detail-modal"
 import { FilterBar, type Filters, type SortOption } from "@/components/filter-bar"
 import { getEpics } from "@/actions/epics"
 import { getWorkspaces } from "@/actions/workspaces"
-import { updateBeadStatus, updateBeadPriority, addComment as addCommentAction } from "@/actions/beads"
+import { updateBeadStatus, updateBeadPriority, updateBeadParent, addComment as addCommentAction } from "@/actions/beads"
 import { useSSE } from "@/hooks/use-sse"
 import { getWorkspaceCookie, setWorkspaceCookie } from "@/lib/workspace-cookie"
 import type { Workspace, Epic, Bead, BeadStatus, BeadPriority, Comment } from "@/lib/types"
@@ -169,6 +169,10 @@ function BeadsEpicsViewer() {
     search: "",
   })
   const [sort, setSort] = useState<SortOption>({ field: "updated", direction: "desc" })
+
+  // Drag and drop state
+  const [draggedBeadId, setDraggedBeadId] = useState<string | null>(null)
+  const [dragOverEpicId, setDragOverEpicId] = useState<string | null>(null)
 
   // URL-based expanded state
   const searchParams = useSearchParams()
@@ -354,6 +358,34 @@ function BeadsEpicsViewer() {
     })
   }
 
+  // Drag and drop handlers
+  const handleDragStart = useCallback((beadId: string) => {
+    setDraggedBeadId(beadId)
+  }, [])
+
+  const handleDragEnd = useCallback(() => {
+    setDraggedBeadId(null)
+    setDragOverEpicId(null)
+  }, [])
+
+  const handleDragOver = useCallback((epicId: string | null) => {
+    setDragOverEpicId(epicId)
+  }, [])
+
+  const handleBeadMove = useCallback(async (beadId: string, targetEpicId: string) => {
+    // "_standalone" means remove parent (set to null)
+    const newParentId = targetEpicId === "_standalone" ? null : targetEpicId
+
+    startTransition(async () => {
+      const result = await updateBeadParent(beadId, newParentId, currentWorkspace?.databasePath)
+      if (!result.success) {
+        console.error("Failed to move bead:", result.error)
+      }
+      // SSE will trigger refresh, but also reload manually for immediate feedback
+      loadEpics()
+    })
+  }, [currentWorkspace?.databasePath, loadEpics])
+
   return (
     <div className="min-h-screen bg-background">
       <Header
@@ -382,7 +414,7 @@ function BeadsEpicsViewer() {
           />
         </div>
 
-        {isLoading ? (
+        {isLoading && epics.length === 0 ? (
           <div className="text-center py-12 text-muted-foreground">
             Loading epics...
           </div>
@@ -394,6 +426,12 @@ function BeadsEpicsViewer() {
             onBeadClick={handleBeadClick}
             onStatusChange={handleStatusChange}
             onPriorityChange={handlePriorityChange}
+            onBeadMove={handleBeadMove}
+            dragOverEpicId={dragOverEpicId}
+            onDragOver={handleDragOver}
+            onDragStart={handleDragStart}
+            onDragEnd={handleDragEnd}
+            draggedBeadId={draggedBeadId}
           />
         ) : (
           <div className="text-center py-12 text-muted-foreground">

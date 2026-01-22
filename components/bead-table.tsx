@@ -33,6 +33,10 @@ interface BeadTableProps {
   onBeadClick: (bead: Bead) => void
   onStatusChange: (beadId: string, status: BeadStatus) => void
   onPriorityChange: (beadId: string, priority: BeadPriority) => void
+  epicId: string
+  onDragStart?: (beadId: string) => void
+  onDragEnd?: () => void
+  draggedBeadId?: string | null
 }
 
 const typeConfig: Record<BeadType, { label: string; className: string; icon: React.ReactNode }> = {
@@ -125,6 +129,11 @@ function PillBadge({
 export function BeadTable({
   beads,
   onBeadClick,
+  onStatusChange,
+  epicId,
+  onDragStart,
+  onDragEnd,
+  draggedBeadId,
 }: BeadTableProps) {
   return (
     <Table>
@@ -142,7 +151,17 @@ export function BeadTable({
         {beads.map((bead, index) => (
           <TableRow
             key={`${bead.id}-${index}`}
-            className="border-border/50 hover:bg-white/5 cursor-pointer transition-colors"
+            draggable
+            onDragStart={(e) => {
+              e.dataTransfer.setData("text/plain", JSON.stringify({ beadId: bead.id, sourceEpicId: epicId }))
+              e.dataTransfer.effectAllowed = "move"
+              onDragStart?.(bead.id)
+            }}
+            onDragEnd={() => onDragEnd?.()}
+            className={cn(
+              "border-border/50 hover:bg-white/5 cursor-pointer transition-colors",
+              draggedBeadId === bead.id && "opacity-50"
+            )}
             onClick={() => onBeadClick(bead)}
           >
             <TableCell className="pl-6">
@@ -155,7 +174,21 @@ export function BeadTable({
               {bead.title}
             </TableCell>
             <TableCell>
-              <PillBadge config={statusConfig[bead.status]} />
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  const nextStatus: Record<BeadStatus, BeadStatus> = {
+                    open: "in_progress",
+                    in_progress: "closed",
+                    closed: "open",
+                  }
+                  onStatusChange(bead.id, nextStatus[bead.status])
+                }}
+                className="hover:opacity-80 transition-opacity"
+              >
+                <PillBadge config={statusConfig[bead.status]} />
+              </button>
             </TableCell>
             <TableCell>
               <PillBadge config={priorityConfig[bead.priority]} />
