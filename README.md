@@ -128,6 +128,10 @@ lib/
   types.ts          # TypeScript interfaces
 ```
 
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
+
 ## License
 
-MIT
+Apache License 2.0

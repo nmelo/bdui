@@ -23,7 +23,7 @@ WORKDIR /app
 
 LABEL org.opencontainers.image.source="https://github.com/nmelo/bdui"
 LABEL org.opencontainers.image.description="Web interface for viewing and managing beads databases"
-LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.licenses="Apache-2.0"
 
 ENV NODE_ENV=production
 ENV PORT=3000
