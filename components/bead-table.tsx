@@ -153,7 +153,7 @@ export function BeadTable({
             key={`${bead.id}-${index}`}
             draggable
             onDragStart={(e) => {
-              e.dataTransfer.setData("text/plain", JSON.stringify({ beadId: bead.id, sourceEpicId: epicId }))
+              e.dataTransfer.setData("text/plain", JSON.stringify({ beadId: bead.id, sourceEpicId: epicId, type: "bead" }))
               e.dataTransfer.effectAllowed = "move"
               onDragStart?.(bead.id)
             }}

@@ -155,6 +155,22 @@ function findBeadById(epics: Epic[], beadId: string): Bead | null {
   return null
 }
 
+// Check if childId is a descendant of the epic with parentId (to prevent circular references)
+function isDescendantOf(parentId: string, childId: string, epics: Epic[]): boolean {
+  function checkEpic(epic: Epic): boolean {
+    if (epic.id === childId) return true
+    return epic.childEpics?.some(checkEpic) ?? false
+  }
+  function findAndCheck(epicList: Epic[]): boolean {
+    for (const epic of epicList) {
+      if (epic.id === parentId) return checkEpic(epic)
+      if (epic.childEpics && findAndCheck(epic.childEpics)) return true
+    }
+    return false
+  }
+  return findAndCheck(epics)
+}
+
 function BeadsEpicsViewer() {
   const [isDark, setIsDark] = useState(true)
   const [workspaces, setWorkspaces] = useState<Workspace[]>([])
@@ -406,6 +422,13 @@ function BeadsEpicsViewer() {
     })
   }, [currentWorkspace?.databasePath, loadEpics])
 
+  // Validate if an epic can be moved to a target (prevents circular references)
+  const canMoveEpic = useCallback((epicId: string, targetEpicId: string): boolean => {
+    if (epicId === targetEpicId) return false
+    if (targetEpicId === "_standalone") return true
+    return !isDescendantOf(epicId, targetEpicId, epics)
+  }, [epics])
+
   return (
     <div className="min-h-screen bg-background">
       <Header
@@ -448,6 +471,7 @@ function BeadsEpicsViewer() {
             onStatusChange={handleStatusChange}
             onPriorityChange={handlePriorityChange}
             onBeadMove={handleBeadMove}
+            canMoveEpic={canMoveEpic}
             dragOverEpicId={dragOverEpicId}
             onDragOver={handleDragOver}
             onDragStart={handleDragStart}
