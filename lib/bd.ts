@@ -1,7 +1,7 @@
-import { exec } from "child_process"
+import { execFile } from "child_process"
 import { promisify } from "util"
 
-const execAsync = promisify(exec)
+const execFileAsync = promisify(execFile)
 
 export interface BdOptions {
   db?: string // Path to database file
@@ -52,13 +52,25 @@ export interface BdWorkspace {
   started_at: string
 }
 
+// Build argument array for bd command (prevents command injection)
+function buildArgs(args: string[], options: BdOptions, includeJson: boolean): string[] {
+  const result: string[] = []
+  if (options.db) {
+    result.push("--db", options.db)
+  }
+  result.push(...args)
+  if (includeJson) {
+    result.push("--json")
+  }
+  return result
+}
+
 // Execute a bd command and return parsed JSON
 async function bdExec<T>(args: string[], options: BdOptions = {}): Promise<T> {
-  const dbFlag = options.db ? `--db "${options.db}"` : ""
-  const command = `bd ${dbFlag} ${args.join(" ")} --json`
+  const execArgs = buildArgs(args, options, true)
 
   try {
-    const { stdout, stderr } = await execAsync(command, {
+    const { stdout, stderr } = await execFileAsync("bd", execArgs, {
       cwd: options.cwd,
       maxBuffer: 10 * 1024 * 1024, // 10MB buffer
     })
@@ -70,7 +82,7 @@ async function bdExec<T>(args: string[], options: BdOptions = {}): Promise<T> {
     return JSON.parse(stdout) as T
   } catch (error: unknown) {
     const execError = error as { stdout?: string; stderr?: string; message?: string }
-    console.error("bd command failed:", command)
+    console.error("bd command failed: bd", execArgs.join(" "))
     console.error("Error:", execError.message)
     if (execError.stderr) {
       console.error("Stderr:", execError.stderr)
@@ -81,10 +93,9 @@ async function bdExec<T>(args: string[], options: BdOptions = {}): Promise<T> {
 
 // Execute a bd command that doesn't return JSON
 async function bdExecRaw(args: string[], options: BdOptions = {}): Promise<string> {
-  const dbFlag = options.db ? `--db "${options.db}"` : ""
-  const command = `bd ${dbFlag} ${args.join(" ")}`
+  const execArgs = buildArgs(args, options, false)
 
-  const { stdout } = await execAsync(command, {
+  const { stdout } = await execFileAsync("bd", execArgs, {
     cwd: options.cwd,
     maxBuffer: 10 * 1024 * 1024,
   })
@@ -116,7 +127,7 @@ export async function getComments(id: string, options: BdOptions = {}): Promise<
 
 // Add a comment to a bead
 export async function addComment(id: string, text: string, options: BdOptions = {}): Promise<void> {
-  await bdExecRaw(["comment", id, `"${text.replace(/"/g, '\\"')}"`], options)
+  await bdExecRaw(["comment", id, text], options)
 }
 
 // Update bead status
@@ -135,17 +146,17 @@ export async function updatePriority(id: string, priority: number, options: BdOp
 
 // Update bead assignee
 export async function updateAssignee(id: string, assignee: string, options: BdOptions = {}): Promise<void> {
-  await bdExecRaw(["update", id, "--assignee", `"${assignee}"`], options)
+  await bdExecRaw(["update", id, "--assignee", assignee], options)
 }
 
 // Update bead title
 export async function updateTitle(id: string, title: string, options: BdOptions = {}): Promise<void> {
-  await bdExecRaw(["update", id, "--title", `"${title.replace(/"/g, '\\"')}"`], options)
+  await bdExecRaw(["update", id, "--title", title], options)
 }
 
 // Update bead description
 export async function updateDescription(id: string, description: string, options: BdOptions = {}): Promise<void> {
-  await bdExecRaw(["update", id, "--description", `"${description.replace(/"/g, '\\"')}"`], options)
+  await bdExecRaw(["update", id, "--description", description], options)
 }
 
 // Update bead type

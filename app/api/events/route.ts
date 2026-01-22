@@ -1,7 +1,29 @@
 import { NextRequest } from "next/server"
 import { watch, type FSWatcher } from "fs"
 import { resolveDbPath } from "@/lib/db"
-import { dirname } from "path"
+import { dirname, resolve, normalize } from "path"
+
+// Additional validation for the database directory path
+function isValidDbDir(dbDir: string): boolean {
+  const normalizedPath = normalize(resolve(dbDir))
+
+  // Check for null bytes
+  if (dbDir.includes("\0")) {
+    return false
+  }
+
+  // Must be absolute
+  if (!normalizedPath.startsWith("/")) {
+    return false
+  }
+
+  // Must be a .beads directory (common pattern for beads databases)
+  if (!normalizedPath.includes(".beads") && !normalizedPath.includes("beads")) {
+    return false
+  }
+
+  return true
+}
 
 // Keep track of active watchers per database path
 const watchers = new Map<string, { watcher: FSWatcher; clients: Set<ReadableStreamDefaultController> }>()
@@ -21,6 +43,11 @@ export async function GET(request: NextRequest) {
   }
 
   const dbDir = dirname(resolvedDbPath)
+
+  // Validate the database directory before watching
+  if (!isValidDbDir(dbDir)) {
+    return new Response("Invalid database path", { status: 400 })
+  }
 
   // Create a readable stream for SSE
   const stream = new ReadableStream({

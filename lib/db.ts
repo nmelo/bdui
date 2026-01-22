@@ -1,7 +1,39 @@
 import { readFile, access, stat } from "fs/promises"
 import { constants } from "fs"
-import { join, dirname, basename } from "path"
+import { join, dirname, basename, resolve, normalize } from "path"
 import { homedir } from "os"
+
+// Validate that a path is safe (no path traversal)
+function isPathSafe(inputPath: string): boolean {
+  // Normalize and resolve the path
+  const normalizedPath = normalize(resolve(inputPath))
+
+  // Check for null bytes (used in some path injection attacks)
+  if (inputPath.includes("\0")) {
+    return false
+  }
+
+  // Ensure the path is absolute after resolution
+  if (!normalizedPath.startsWith("/")) {
+    return false
+  }
+
+  return true
+}
+
+// Validate that resolved path is a valid .db file path
+function isValidDbPath(dbPath: string): boolean {
+  if (!isPathSafe(dbPath)) {
+    return false
+  }
+
+  // Must end with .db
+  if (!dbPath.endsWith(".db")) {
+    return false
+  }
+
+  return true
+}
 
 export interface Workspace {
   id: string
@@ -15,7 +47,13 @@ const REGISTRY_PATH = join(homedir(), ".beads", "registry.json")
 
 // Find nearest .beads directory walking up from cwd
 async function findNearestBeadsDir(startPath: string): Promise<string | null> {
-  let current = startPath
+  // Validate and normalize the start path
+  if (!isPathSafe(startPath)) {
+    console.error("Invalid start path:", startPath)
+    return null
+  }
+
+  let current = resolve(startPath)
 
   while (current !== "/") {
     const beadsDir = join(current, ".beads")
@@ -25,9 +63,13 @@ async function findNearestBeadsDir(startPath: string): Promise<string | null> {
         // Find the .db file in this directory
         const { readdir } = await import("fs/promises")
         const files = await readdir(beadsDir)
-        const dbFile = files.find((f) => f.endsWith(".db"))
+        // Only accept .db files with safe names (no path separators)
+        const dbFile = files.find((f) => f.endsWith(".db") && !f.includes("/") && !f.includes("\\"))
         if (dbFile) {
-          return join(beadsDir, dbFile)
+          const dbPath = join(beadsDir, dbFile)
+          if (isValidDbPath(dbPath)) {
+            return dbPath
+          }
         }
       }
     } catch {
@@ -60,23 +102,30 @@ export async function resolveDbPath(
 ): Promise<string | null> {
   // 1. Explicit path
   if (explicitPath) {
+    // Validate the path before using it
+    if (!isValidDbPath(explicitPath)) {
+      console.error("Invalid db path:", explicitPath)
+      return null
+    }
+    const resolvedPath = resolve(explicitPath)
     try {
-      await access(explicitPath, constants.R_OK)
-      return explicitPath
+      await access(resolvedPath, constants.R_OK)
+      return resolvedPath
     } catch {
-      console.error("Explicit db path not accessible:", explicitPath)
+      console.error("Explicit db path not accessible:", resolvedPath)
       return null
     }
   }
 
   // Check BEADS_DB environment variable
   const envPath = process.env.BEADS_DB
-  if (envPath) {
+  if (envPath && isValidDbPath(envPath)) {
+    const resolvedEnvPath = resolve(envPath)
     try {
-      await access(envPath, constants.R_OK)
-      return envPath
+      await access(resolvedEnvPath, constants.R_OK)
+      return resolvedEnvPath
     } catch {
-      console.error("BEADS_DB path not accessible:", envPath)
+      console.error("BEADS_DB path not accessible:", resolvedEnvPath)
     }
   }
 
