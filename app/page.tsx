@@ -208,8 +208,10 @@ function BeadsEpicsViewer() {
   const [draggedBeadId, setDraggedBeadId] = useState<string | null>(null)
   const [dragOverEpicId, setDragOverEpicId] = useState<string | null>(null)
 
-  // Skip SSE reloads briefly after optimistic updates
+  // Skip SSE reloads briefly after optimistic updates or after loading
+  // (SQLite WAL checkpoint from reads can trigger file watcher)
   const skipNextSSEReload = useRef(false)
+  const lastLoadTime = useRef(0)
 
   // URL-based expanded state
   const searchParams = useSearchParams()
@@ -323,6 +325,9 @@ function BeadsEpicsViewer() {
     } finally {
       setIsLoading(false)
       setLoadingWorkspaceId(null)
+      // Record load time to ignore SSE events triggered by our own read
+      // (SQLite WAL checkpoint can modify db file timestamp)
+      lastLoadTime.current = Date.now()
     }
   }, [currentWorkspace?.databasePath])
 
@@ -332,10 +337,16 @@ function BeadsEpicsViewer() {
     }
   }, [currentWorkspace, loadEpics])
 
-  // Subscribe to real-time database changes (skip if we just did an optimistic update)
+  // Subscribe to real-time database changes (skip if we just did an optimistic update
+  // or if we recently loaded - SQLite checkpoint from reads triggers file watcher)
   const handleSSEChange = useCallback(() => {
     if (skipNextSSEReload.current) {
       skipNextSSEReload.current = false
+      return
+    }
+    // Ignore SSE events within 2 seconds of last load to prevent feedback loop
+    // caused by SQLite WAL checkpoint modifying db file on reads
+    if (Date.now() - lastLoadTime.current < 2000) {
       return
     }
     loadEpics()
