@@ -1,11 +1,10 @@
 "use server"
 
 import {
-  listEpics,
   listBeads,
   showBead,
+  showBeads,
   getComments,
-  getEpicStatuses,
   mapPriority,
   mapType,
   type BdBead,
@@ -49,166 +48,116 @@ function convertBead(bdBead: BdBead, comments: Comment[] = []): Bead {
   }
 }
 
-// Maximum recursion depth for subtask fetching
-const MAX_SUBTASK_DEPTH = 5
-
-// Recursively fetch a bead with its children (subtasks)
-async function fetchBeadWithChildren(
-  bdBead: BdBead,
-  options: BdOptions,
-  depth: number = 0
-): Promise<Bead> {
-  const baseBead = convertBead(bdBead)
-
-  // Stop recursion at max depth or if no dependents
-  if (depth >= MAX_SUBTASK_DEPTH) {
-    return baseBead
-  }
-
-  // Fetch full details to get dependents
-  let fullBead: BdBead
-  try {
-    fullBead = await showBead(bdBead.id, options)
-  } catch {
-    return baseBead
-  }
-
-  // Extract parent-child dependents (subtasks)
-  const childDependents = fullBead.dependents?.filter(
-    (dep) => dep.dependency_type === "parent-child" && dep.issue_type !== "epic"
-  ) || []
-
-  if (childDependents.length === 0) {
-    return baseBead
-  }
-
-  // Recursively fetch children
-  const children = await Promise.all(
-    childDependents.map((dep) => fetchBeadWithChildren(dep, options, depth + 1))
-  )
-
-  return {
-    ...baseBead,
-    children,
-  }
-}
-
 // Build epic hierarchy from flat list of beads
+// Optimized: uses only 2 bd CLI calls instead of N+1
 async function buildEpicHierarchy(options: BdOptions = {}): Promise<Epic[]> {
-  // Get all epics
-  const bdEpics = await listEpics(options)
+  // Step 1: Get ALL beads in one call (includes parent field)
+  const allBeads = await listBeads(options)
 
-  // Get epic status counters
-  let epicStatuses: Map<string, { total: number; closed: number }> = new Map()
-  try {
-    const statuses = await getEpicStatuses(options)
-    epicStatuses = new Map(
-      statuses.map((s) => [s.id, { total: s.total_children, closed: s.closed_children }])
-    )
-  } catch {
-    // Epic status command might not exist in older versions
+  // Separate epics from regular beads
+  const epicBeads = allBeads.filter(b => b.issue_type === "epic")
+  const nonEpicBeads = allBeads.filter(b => b.issue_type !== "epic")
+
+  // Step 2: Get all epics with their dependents in ONE batched call
+  const epicIds = epicBeads.map(e => e.id)
+  let epicsWithDependents: BdBead[] = []
+  if (epicIds.length > 0) {
+    try {
+      epicsWithDependents = await showBeads(epicIds, options)
+    } catch {
+      // Fallback: use basic epic data without dependents
+      epicsWithDependents = epicBeads
+    }
   }
 
-  // For each epic, get its full details including dependents
-  const epicsWithDetails = await Promise.all(
-    bdEpics.map(async (epic) => {
-      try {
-        const fullEpic = await showBead(epic.id, options)
-        const comments = await getComments(epic.id, options).catch(() => [])
-        return { epic: fullEpic, comments: comments.map(convertComment) }
-      } catch {
-        return { epic, comments: [] as Comment[] }
-      }
-    })
+  // Build lookup maps for O(1) access
+  const beadById = new Map<string, BdBead>(allBeads.map(b => [b.id, b]))
+  const epicDependentsById = new Map<string, BdBead[]>(
+    epicsWithDependents.map(e => [e.id, e.dependents || []])
   )
 
-  // Build a map of id -> Epic for quick lookup
+  // Build parent->children map from the parent field (for subtasks)
+  const childrenByParent = new Map<string, BdBead[]>()
+  for (const bead of nonEpicBeads) {
+    if (bead.parent) {
+      const siblings = childrenByParent.get(bead.parent) || []
+      siblings.push(bead)
+      childrenByParent.set(bead.parent, siblings)
+    }
+  }
+
+  // Recursively build bead with children (no network calls - all from memory)
+  function buildBeadWithChildren(bdBead: BdBead, depth: number = 0): Bead {
+    const baseBead = convertBead(bdBead)
+    if (depth >= 5) return baseBead // Max depth
+
+    const children = childrenByParent.get(bdBead.id) || []
+    if (children.length === 0) return baseBead
+
+    return {
+      ...baseBead,
+      children: children.map(child => buildBeadWithChildren(child, depth + 1)),
+    }
+  }
+
+  // Build Epic objects
   const epicMap = new Map<string, Epic>()
-  const childEpicIds = new Set<string>() // Track which epics are children
+  const childEpicIds = new Set<string>()
 
   // First pass: create all Epic objects
-  for (const { epic: bdEpic, comments } of epicsWithDetails) {
-    const baseBead = convertBead(bdEpic, comments)
-    const status = epicStatuses.get(bdEpic.id)
-
+  for (const bdEpic of epicsWithDependents) {
     const epic: Epic = {
-      ...baseBead,
+      ...convertBead(bdEpic),
       type: "epic",
       children: [],
       childEpics: [],
     }
-
     epicMap.set(bdEpic.id, epic)
-
-    // Track if this epic has a parent
-    if (bdEpic.parent && epicMap.has(bdEpic.parent)) {
-      childEpicIds.add(bdEpic.id)
-    }
   }
 
-  // Second pass: populate children and childEpics (with recursive subtask fetching)
-  for (const { epic: bdEpic } of epicsWithDetails) {
+  // Second pass: populate children and childEpics from dependents
+  for (const bdEpic of epicsWithDependents) {
     const epic = epicMap.get(bdEpic.id)!
+    const dependents = epicDependentsById.get(bdEpic.id) || []
 
-    // Add dependents as children
-    if (bdEpic.dependents) {
-      const childPromises: Promise<void>[] = []
+    for (const dependent of dependents) {
+      if (dependent.dependency_type !== "parent-child") continue
 
-      for (const dependent of bdEpic.dependents) {
-        if (dependent.issue_type === "epic") {
-          // This is a child epic
-          const childEpic = epicMap.get(dependent.id)
-          if (childEpic) {
-            // Update parentId to match the actual hierarchy (dependents relationship)
-            childEpic.parentId = epic.id
-            epic.childEpics!.push(childEpic)
-            childEpicIds.add(dependent.id)
-          }
-        } else {
-          // Regular bead - fetch with subtasks recursively
-          childPromises.push(
-            fetchBeadWithChildren(dependent, options, 0).then((childBead) => {
-              childBead.parentId = epic.id
-              epic.children.push(childBead)
-            })
-          )
+      if (dependent.issue_type === "epic") {
+        // Child epic
+        const childEpic = epicMap.get(dependent.id)
+        if (childEpic) {
+          childEpic.parentId = epic.id
+          epic.childEpics!.push(childEpic)
+          childEpicIds.add(dependent.id)
         }
+      } else {
+        // Regular bead - build with subtasks from memory
+        const fullBead = beadById.get(dependent.id) || dependent
+        const childBead = buildBeadWithChildren(fullBead)
+        childBead.parentId = epic.id
+        epic.children.push(childBead)
       }
-
-      // Wait for all child fetches to complete
-      await Promise.all(childPromises)
     }
   }
 
-  // Get top-level epics (those without parents or whose parents are not epics)
-  const topLevelEpics = Array.from(epicMap.values()).filter((epic) => !childEpicIds.has(epic.id))
+  // Get top-level epics
+  const topLevelEpics = Array.from(epicMap.values()).filter(e => !childEpicIds.has(e.id))
 
-  // Now fetch all beads to find orphans (beads with no parent that aren't epics)
-  const allBeads = await listBeads(options)
-  const epicIds = new Set(bdEpics.map((e) => e.id))
+  // Find orphan beads (no parent, not under any epic)
   const beadsUnderEpics = new Set<string>()
-
-  // Track all beads that are children of epics
-  for (const { epic: bdEpic } of epicsWithDetails) {
-    if (bdEpic.dependents) {
-      for (const dep of bdEpic.dependents) {
-        beadsUnderEpics.add(dep.id)
-      }
+  for (const bdEpic of epicsWithDependents) {
+    const dependents = epicDependentsById.get(bdEpic.id) || []
+    for (const dep of dependents) {
+      beadsUnderEpics.add(dep.id)
     }
   }
 
-  // Find orphan beads: not an epic, and not a child of any epic
-  const orphanBeads = allBeads.filter(
-    (bead) => !epicIds.has(bead.id) && !beadsUnderEpics.has(bead.id) && !bead.parent
+  const orphanBeads = nonEpicBeads.filter(
+    bead => !beadsUnderEpics.has(bead.id) && !bead.parent
   )
 
-  // If there are orphan beads, create a synthetic epic to hold them
   if (orphanBeads.length > 0) {
-    // Fetch orphan beads with their subtasks
-    const orphanBeadsWithChildren = await Promise.all(
-      orphanBeads.map((b) => fetchBeadWithChildren(b, options, 0))
-    )
-
     const orphanEpic: Epic = {
       id: "_standalone",
       type: "epic",
@@ -219,7 +168,7 @@ async function buildEpicHierarchy(options: BdOptions = {}): Promise<Epic[]> {
       assignee: "",
       labels: [],
       comments: [],
-      children: orphanBeadsWithChildren,
+      children: orphanBeads.map(b => buildBeadWithChildren(b)),
       childEpics: [],
     }
     topLevelEpics.push(orphanEpic)

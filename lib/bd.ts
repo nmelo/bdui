@@ -126,6 +126,12 @@ export async function showBead(id: string, options: BdOptions = {}): Promise<BdB
   return result[0]
 }
 
+// Get multiple beads by ID in a single call (includes dependents for epics)
+export async function showBeads(ids: string[], options: BdOptions = {}): Promise<BdBead[]> {
+  if (ids.length === 0) return []
+  return bdExec<BdBead[]>(["show", ...ids], options)
+}
+
 // Get comments for a bead
 export async function getComments(id: string, options: BdOptions = {}): Promise<BdComment[]> {
   return bdExec<BdComment[]>(["comments", id], options)
