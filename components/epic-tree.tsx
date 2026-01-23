@@ -92,6 +92,8 @@ interface EpicTreeProps {
   onDragStart?: (beadId: string) => void
   onDragEnd?: () => void
   draggedBeadId?: string | null
+  expandedBeads?: Set<string>
+  onToggleBead?: (beadId: string) => void
 }
 
 // Depth-based left border colors
@@ -112,17 +114,33 @@ const depthStyles = [
   { bg: "bg-slate-900/80", shadow: "shadow-inner" },
 ]
 
+// Recursively count closed and total from a bead and its subtasks
+function countBeadAndSubtasks(bead: Bead): { closed: number; total: number } {
+  let closed = bead.status === "closed" ? 1 : 0
+  let total = 1
+
+  // Recursively count subtasks
+  if (bead.children && bead.children.length > 0) {
+    for (const child of bead.children) {
+      const childCounts = countBeadAndSubtasks(child)
+      closed += childCounts.closed
+      total += childCounts.total
+    }
+  }
+
+  return { closed, total }
+}
+
 // Recursively calculate closed and total counts from all descendants
 function getAggregatedCounts(epic: Epic): { closed: number; total: number } {
   let closed = 0
   let total = 0
 
-  // Count direct child beads
+  // Count direct child beads and their subtasks
   for (const child of epic.children) {
-    total++
-    if (child.status === "closed") {
-      closed++
-    }
+    const childCounts = countBeadAndSubtasks(child)
+    closed += childCounts.closed
+    total += childCounts.total
   }
 
   // Recursively count from child epics
@@ -152,6 +170,8 @@ export function EpicTree({
   onDragStart,
   onDragEnd,
   draggedBeadId,
+  expandedBeads,
+  onToggleBead,
 }: EpicTreeProps) {
   return (
     <div className="space-y-3">
@@ -173,6 +193,8 @@ export function EpicTree({
           onDragStart={onDragStart}
           onDragEnd={onDragEnd}
           draggedBeadId={draggedBeadId}
+          expandedBeads={expandedBeads}
+          onToggleBead={onToggleBead}
         />
       ))}
 
@@ -225,6 +247,8 @@ interface EpicRowProps {
   onDragStart?: (beadId: string) => void
   onDragEnd?: () => void
   draggedBeadId?: string | null
+  expandedBeads?: Set<string>
+  onToggleBead?: (beadId: string) => void
 }
 
 function EpicRow({
@@ -243,6 +267,8 @@ function EpicRow({
   onDragStart,
   onDragEnd,
   draggedBeadId,
+  expandedBeads,
+  onToggleBead,
 }: EpicRowProps) {
   const isExpanded = expandedEpics.has(epic.id)
   const { closed: closedCount, total: totalCount } = getAggregatedCounts(epic)
@@ -405,6 +431,8 @@ function EpicRow({
                   onDragStart={onDragStart}
                   onDragEnd={onDragEnd}
                   draggedBeadId={draggedBeadId}
+                  expandedBeads={expandedBeads}
+                  onToggleBead={onToggleBead}
                 />
               ))}
             </div>
@@ -423,6 +451,8 @@ function EpicRow({
                 onDragStart={onDragStart}
                 onDragEnd={onDragEnd}
                 draggedBeadId={draggedBeadId}
+                expandedBeads={expandedBeads}
+                onToggleBead={onToggleBead}
               />
             </div>
           )}

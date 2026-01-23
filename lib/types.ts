@@ -23,6 +23,7 @@ export interface Bead {
   parentId?: string
   createdAt?: Date
   updatedAt?: Date
+  children?: Bead[]  // Subtasks (nested parent-child relationships)
 }
 
 export interface Epic extends Bead {

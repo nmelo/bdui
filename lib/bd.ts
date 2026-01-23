@@ -23,7 +23,9 @@ export interface BdBead {
   closed_at?: number
   acceptance_criteria?: string
   notes?: string
-  // Epic-specific
+  // Dependency fields (when this bead is a dependent of another)
+  dependency_type?: "parent-child" | "blocks" | "related"
+  // Epic/parent-specific
   dependents?: BdBead[]
   total_children?: number
   closed_children?: number

@@ -28,15 +28,17 @@ import {
 function extractAssignees(epics: Epic[]): string[] {
   const assignees = new Set<string>()
 
-  function traverse(bead: Bead) {
+  function traverseBead(bead: Bead) {
     if (bead.assignee) {
       assignees.add(bead.assignee)
     }
+    // Traverse subtasks
+    bead.children?.forEach(traverseBead)
   }
 
   function traverseEpic(epic: Epic) {
-    traverse(epic)
-    epic.children.forEach(traverse)
+    traverseBead(epic)
+    epic.children.forEach(traverseBead)
     epic.childEpics?.forEach(traverseEpic)
   }
 
@@ -70,10 +72,33 @@ function matchesBead(bead: Bead, filters: Filters): boolean {
   return true
 }
 
+// Recursively filter a bead and its children
+function filterBead(bead: Bead, filters: Filters): Bead | null {
+  // Recursively filter children first
+  const filteredChildren = bead.children
+    ?.map((child) => filterBead(child, filters))
+    .filter((b): b is Bead => b !== null)
+
+  // Check if bead itself matches
+  const beadMatches = matchesBead(bead, filters)
+
+  // Keep bead if it matches or has matching children
+  if (beadMatches || (filteredChildren && filteredChildren.length > 0)) {
+    return {
+      ...bead,
+      children: filteredChildren,
+    }
+  }
+
+  return null
+}
+
 // Recursively filter epics - keep epic if it or any descendant matches
 function filterEpic(epic: Epic, filters: Filters): Epic | null {
-  // Filter child beads
-  const filteredChildren = epic.children.filter((child) => matchesBead(child, filters))
+  // Filter child beads (including their subtasks)
+  const filteredChildren = epic.children
+    .map((child) => filterBead(child, filters))
+    .filter((b): b is Bead => b !== null)
 
   // Recursively filter child epics
   const filteredChildEpics = epic.childEpics
@@ -156,12 +181,25 @@ function findParentPath(epics: Epic[], beadId: string, path: { id: string; title
   return null
 }
 
+// Recursively find a bead by ID in a bead and its children
+function findInBead(bead: Bead, beadId: string): Bead | null {
+  if (bead.id === beadId) return bead
+  if (bead.children) {
+    for (const child of bead.children) {
+      const found = findInBead(child, beadId)
+      if (found) return found
+    }
+  }
+  return null
+}
+
 // Find a bead by ID in the epic tree
 function findBeadById(epics: Epic[], beadId: string): Bead | null {
   for (const epic of epics) {
     if (epic.id === beadId) return epic
     for (const child of epic.children) {
-      if (child.id === beadId) return child
+      const found = findInBead(child, beadId)
+      if (found) return found
     }
     if (epic.childEpics) {
       const found = findBeadById(epic.childEpics, beadId)
@@ -213,13 +251,16 @@ function BeadsEpicsViewer() {
   const skipNextSSEReload = useRef(false)
   const lastLoadTime = useRef(0)
 
-  // URL-based expanded state
+  // URL-based expanded state for epics
   const searchParams = useSearchParams()
   const router = useRouter()
   const expandedEpics = useMemo(() => {
     const expandedParam = searchParams.get("expanded") || ""
     return new Set(expandedParam ? expandedParam.split(",") : [])
   }, [searchParams])
+
+  // Local state for expanded beads (subtasks) - kept separate from URL to avoid clutter
+  const [expandedBeads, setExpandedBeads] = useState<Set<string>>(new Set())
 
   // URL-based modal state
   const beadIdParam = searchParams.get("bead")
@@ -281,6 +322,18 @@ function BeadsEpicsViewer() {
 
     router.replace(`?${params.toString()}`, { scroll: false })
   }, [expandedEpics, searchParams, router])
+
+  const handleToggleBead = useCallback((beadId: string) => {
+    setExpandedBeads((prev) => {
+      const next = new Set(prev)
+      if (next.has(beadId)) {
+        next.delete(beadId)
+      } else {
+        next.add(beadId)
+      }
+      return next
+    })
+  }, [])
 
   const assignees = useMemo(() => extractAssignees(epics), [epics])
   const filteredEpics = useMemo(() => filterEpics(epics, filters), [epics, filters])
@@ -381,15 +434,27 @@ function BeadsEpicsViewer() {
   }, [searchParams, router])
 
   const updateBeadInEpics = (beadId: string, updateFn: (bead: Bead) => Bead) => {
+    // Recursively update a bead and its children
+    const updateBead = (bead: Bead): Bead => {
+      if (bead.id === beadId) {
+        return updateFn(bead)
+      }
+      if (bead.children) {
+        return {
+          ...bead,
+          children: bead.children.map(updateBead),
+        }
+      }
+      return bead
+    }
+
     const updateEpic = (epic: Epic): Epic => {
       if (epic.id === beadId) {
         return updateFn(epic) as Epic
       }
       return {
         ...epic,
-        children: epic.children.map((child) =>
-          child.id === beadId ? updateFn(child) : child
-        ),
+        children: epic.children.map(updateBead),
         childEpics: epic.childEpics?.map(updateEpic),
       }
     }
@@ -553,6 +618,8 @@ function BeadsEpicsViewer() {
             onDragStart={handleDragStart}
             onDragEnd={handleDragEnd}
             draggedBeadId={draggedBeadId}
+            expandedBeads={expandedBeads}
+            onToggleBead={handleToggleBead}
           />
         ) : (
           <div className="text-center py-12 text-muted-foreground">

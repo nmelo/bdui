@@ -49,6 +49,50 @@ function convertBead(bdBead: BdBead, comments: Comment[] = []): Bead {
   }
 }
 
+// Maximum recursion depth for subtask fetching
+const MAX_SUBTASK_DEPTH = 5
+
+// Recursively fetch a bead with its children (subtasks)
+async function fetchBeadWithChildren(
+  bdBead: BdBead,
+  options: BdOptions,
+  depth: number = 0
+): Promise<Bead> {
+  const baseBead = convertBead(bdBead)
+
+  // Stop recursion at max depth or if no dependents
+  if (depth >= MAX_SUBTASK_DEPTH) {
+    return baseBead
+  }
+
+  // Fetch full details to get dependents
+  let fullBead: BdBead
+  try {
+    fullBead = await showBead(bdBead.id, options)
+  } catch {
+    return baseBead
+  }
+
+  // Extract parent-child dependents (subtasks)
+  const childDependents = fullBead.dependents?.filter(
+    (dep) => dep.dependency_type === "parent-child" && dep.issue_type !== "epic"
+  ) || []
+
+  if (childDependents.length === 0) {
+    return baseBead
+  }
+
+  // Recursively fetch children
+  const children = await Promise.all(
+    childDependents.map((dep) => fetchBeadWithChildren(dep, options, depth + 1))
+  )
+
+  return {
+    ...baseBead,
+    children,
+  }
+}
+
 // Build epic hierarchy from flat list of beads
 async function buildEpicHierarchy(options: BdOptions = {}): Promise<Epic[]> {
   // Get all epics
@@ -102,12 +146,14 @@ async function buildEpicHierarchy(options: BdOptions = {}): Promise<Epic[]> {
     }
   }
 
-  // Second pass: populate children and childEpics
+  // Second pass: populate children and childEpics (with recursive subtask fetching)
   for (const { epic: bdEpic } of epicsWithDetails) {
     const epic = epicMap.get(bdEpic.id)!
 
     // Add dependents as children
     if (bdEpic.dependents) {
+      const childPromises: Promise<void>[] = []
+
       for (const dependent of bdEpic.dependents) {
         if (dependent.issue_type === "epic") {
           // This is a child epic
@@ -119,12 +165,18 @@ async function buildEpicHierarchy(options: BdOptions = {}): Promise<Epic[]> {
             childEpicIds.add(dependent.id)
           }
         } else {
-          // Regular bead - set parentId to this epic
-          const childBead = convertBead(dependent)
-          childBead.parentId = epic.id
-          epic.children.push(childBead)
+          // Regular bead - fetch with subtasks recursively
+          childPromises.push(
+            fetchBeadWithChildren(dependent, options, 0).then((childBead) => {
+              childBead.parentId = epic.id
+              epic.children.push(childBead)
+            })
+          )
         }
       }
+
+      // Wait for all child fetches to complete
+      await Promise.all(childPromises)
     }
   }
 
@@ -152,6 +204,11 @@ async function buildEpicHierarchy(options: BdOptions = {}): Promise<Epic[]> {
 
   // If there are orphan beads, create a synthetic epic to hold them
   if (orphanBeads.length > 0) {
+    // Fetch orphan beads with their subtasks
+    const orphanBeadsWithChildren = await Promise.all(
+      orphanBeads.map((b) => fetchBeadWithChildren(b, options, 0))
+    )
+
     const orphanEpic: Epic = {
       id: "_standalone",
       type: "epic",
@@ -162,7 +219,7 @@ async function buildEpicHierarchy(options: BdOptions = {}): Promise<Epic[]> {
       assignee: "",
       labels: [],
       comments: [],
-      children: orphanBeads.map((b) => convertBead(b)),
+      children: orphanBeadsWithChildren,
       childEpics: [],
     }
     topLevelEpics.push(orphanEpic)

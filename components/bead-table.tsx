@@ -17,6 +17,8 @@ import {
   ArrowDown,
   MessageSquare,
   Trash2,
+  ChevronRight,
+  ChevronDown,
 } from "lucide-react"
 import {
   Table,
@@ -40,6 +42,154 @@ interface BeadTableProps {
   onDragStart?: (beadId: string) => void
   onDragEnd?: () => void
   draggedBeadId?: string | null
+  expandedBeads?: Set<string>
+  onToggleBead?: (beadId: string) => void
+}
+
+// Depth-based left border colors for nested subtasks
+const depthBorderColors = [
+  "border-l-transparent",
+  "border-l-blue-500/50",
+  "border-l-cyan-500/50",
+  "border-l-teal-500/50",
+  "border-l-emerald-500/50",
+]
+
+interface BeadRowProps {
+  bead: Bead
+  depth: number
+  onBeadClick: (bead: Bead) => void
+  onStatusChange: (beadId: string, status: BeadStatus) => void
+  onDelete?: (beadId: string) => void
+  epicId: string
+  onDragStart?: (beadId: string) => void
+  onDragEnd?: () => void
+  draggedBeadId?: string | null
+  expandedBeads?: Set<string>
+  onToggleBead?: (beadId: string) => void
+}
+
+function BeadRow({
+  bead,
+  depth,
+  onBeadClick,
+  onStatusChange,
+  onDelete,
+  epicId,
+  onDragStart,
+  onDragEnd,
+  draggedBeadId,
+  expandedBeads,
+  onToggleBead,
+}: BeadRowProps) {
+  const hasChildren = bead.children && bead.children.length > 0
+  const isExpanded = expandedBeads?.has(bead.id) ?? false
+  const borderColor = depthBorderColors[Math.min(depth, depthBorderColors.length - 1)]
+
+  return (
+    <>
+      <TableRow
+        draggable
+        onDragStart={(e) => {
+          e.dataTransfer.setData("text/plain", JSON.stringify({ beadId: bead.id, sourceEpicId: epicId, type: "bead" }))
+          e.dataTransfer.effectAllowed = "move"
+          onDragStart?.(bead.id)
+        }}
+        onDragEnd={() => onDragEnd?.()}
+        className={cn(
+          "border-border/50 hover:bg-white/5 cursor-pointer transition-colors border-l-2",
+          borderColor,
+          draggedBeadId === bead.id && "opacity-50"
+        )}
+        onClick={() => onBeadClick(bead)}
+      >
+        <TableCell className="pl-6" style={{ paddingLeft: depth > 0 ? `${24 + depth * 16}px` : undefined }}>
+          <div className="flex items-center gap-1">
+            {hasChildren ? (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onToggleBead?.(bead.id)
+                }}
+                className="p-0.5 -ml-5 mr-1 text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {isExpanded ? (
+                  <ChevronDown className="h-4 w-4" />
+                ) : (
+                  <ChevronRight className="h-4 w-4" />
+                )}
+              </button>
+            ) : depth > 0 ? (
+              <span className="w-5 -ml-5 mr-1" />
+            ) : null}
+            <CopyableId id={bead.id} />
+          </div>
+        </TableCell>
+        <TableCell>
+          <PillBadge config={typeConfig[bead.type]} />
+        </TableCell>
+        <TableCell className="font-medium text-foreground">
+          {bead.title}
+        </TableCell>
+        <TableCell>
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation()
+              const nextStatus: Record<BeadStatus, BeadStatus> = {
+                open: "in_progress",
+                in_progress: "closed",
+                closed: "open",
+              }
+              onStatusChange(bead.id, nextStatus[bead.status])
+            }}
+            className="hover:opacity-80 transition-opacity"
+          >
+            <PillBadge config={statusConfig[bead.status]} />
+          </button>
+        </TableCell>
+        <TableCell>
+          <PillBadge config={priorityConfig[bead.priority]} />
+        </TableCell>
+        <TableCell className="text-muted-foreground">
+          {bead.assignee || <span className="text-muted-foreground/50 italic">Unassigned</span>}
+        </TableCell>
+        {onDelete && (
+          <TableCell className="pr-4">
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onDelete(bead.id)
+              }}
+              className="p-1.5 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
+              title="Delete bead"
+            >
+              <Trash2 className="h-4 w-4" />
+            </button>
+          </TableCell>
+        )}
+      </TableRow>
+      {/* Render children if expanded */}
+      {hasChildren && isExpanded && bead.children!.map((child, idx) => (
+        <BeadRow
+          key={`${child.id}-${idx}`}
+          bead={child}
+          depth={depth + 1}
+          onBeadClick={onBeadClick}
+          onStatusChange={onStatusChange}
+          onDelete={onDelete}
+          epicId={epicId}
+          onDragStart={onDragStart}
+          onDragEnd={onDragEnd}
+          draggedBeadId={draggedBeadId}
+          expandedBeads={expandedBeads}
+          onToggleBead={onToggleBead}
+        />
+      ))}
+    </>
+  )
 }
 
 const typeConfig: Record<BeadType, { label: string; className: string; icon: React.ReactNode }> = {
@@ -143,6 +293,8 @@ export function BeadTable({
   onDragStart,
   onDragEnd,
   draggedBeadId,
+  expandedBeads,
+  onToggleBead,
 }: BeadTableProps) {
   return (
     <Table>
@@ -159,69 +311,20 @@ export function BeadTable({
       </TableHeader>
       <TableBody>
         {beads.map((bead, index) => (
-          <TableRow
+          <BeadRow
             key={`${bead.id}-${index}`}
-            draggable
-            onDragStart={(e) => {
-              e.dataTransfer.setData("text/plain", JSON.stringify({ beadId: bead.id, sourceEpicId: epicId, type: "bead" }))
-              e.dataTransfer.effectAllowed = "move"
-              onDragStart?.(bead.id)
-            }}
-            onDragEnd={() => onDragEnd?.()}
-            className={cn(
-              "border-border/50 hover:bg-white/5 cursor-pointer transition-colors",
-              draggedBeadId === bead.id && "opacity-50"
-            )}
-            onClick={() => onBeadClick(bead)}
-          >
-            <TableCell className="pl-6">
-              <CopyableId id={bead.id} />
-            </TableCell>
-            <TableCell>
-              <PillBadge config={typeConfig[bead.type]} />
-            </TableCell>
-            <TableCell className="font-medium text-foreground">
-              {bead.title}
-            </TableCell>
-            <TableCell>
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  const nextStatus: Record<BeadStatus, BeadStatus> = {
-                    open: "in_progress",
-                    in_progress: "closed",
-                    closed: "open",
-                  }
-                  onStatusChange(bead.id, nextStatus[bead.status])
-                }}
-                className="hover:opacity-80 transition-opacity"
-              >
-                <PillBadge config={statusConfig[bead.status]} />
-              </button>
-            </TableCell>
-            <TableCell>
-              <PillBadge config={priorityConfig[bead.priority]} />
-            </TableCell>
-            <TableCell className="text-muted-foreground">
-              {bead.assignee || <span className="text-muted-foreground/50 italic">Unassigned</span>}
-            </TableCell>
-            {onDelete && (
-              <TableCell className="pr-4">
-                <button
-                  type="button"
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    onDelete(bead.id)
-                  }}
-                  className="p-1.5 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
-                  title="Delete bead"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              </TableCell>
-            )}
-          </TableRow>
+            bead={bead}
+            depth={0}
+            onBeadClick={onBeadClick}
+            onStatusChange={onStatusChange}
+            onDelete={onDelete}
+            epicId={epicId}
+            onDragStart={onDragStart}
+            onDragEnd={onDragEnd}
+            draggedBeadId={draggedBeadId}
+            expandedBeads={expandedBeads}
+            onToggleBead={onToggleBead}
+          />
         ))}
       </TableBody>
     </Table>
