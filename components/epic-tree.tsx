@@ -1,11 +1,80 @@
 "use client"
 
-import { ChevronRight, ChevronDown } from "lucide-react"
+import {
+  ChevronRight,
+  ChevronDown,
+  CheckCircle2,
+  Circle,
+  CircleDot,
+  AlertTriangle,
+  ArrowUp,
+  Minus,
+  ArrowDown,
+} from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { BeadTable } from "@/components/bead-table"
 import { CopyableId } from "@/components/copyable-id"
 import type { Epic, Bead, BeadStatus, BeadPriority } from "@/lib/types"
 import { cn } from "@/lib/utils"
+
+const statusConfig: Record<BeadStatus, { label: string; className: string; icon: React.ReactNode }> = {
+  open: {
+    label: "Open",
+    className: "bg-slate-500/20 text-slate-300 border-slate-500/40",
+    icon: <Circle className="h-3 w-3" />,
+  },
+  in_progress: {
+    label: "In Progress",
+    className: "bg-amber-500/20 text-amber-400 border-amber-500/40",
+    icon: <CircleDot className="h-3 w-3" />,
+  },
+  closed: {
+    label: "Closed",
+    className: "bg-emerald-500/20 text-emerald-400 border-emerald-500/40",
+    icon: <CheckCircle2 className="h-3 w-3" />,
+  },
+}
+
+const priorityConfig: Record<BeadPriority, { label: string; className: string; icon: React.ReactNode }> = {
+  critical: {
+    label: "Critical",
+    className: "bg-red-500/20 text-red-400 border-red-500/40",
+    icon: <AlertTriangle className="h-3 w-3" />,
+  },
+  high: {
+    label: "High",
+    className: "bg-orange-500/20 text-orange-400 border-orange-500/40",
+    icon: <ArrowUp className="h-3 w-3" />,
+  },
+  medium: {
+    label: "Medium",
+    className: "bg-yellow-500/20 text-yellow-400 border-yellow-500/40",
+    icon: <Minus className="h-3 w-3" />,
+  },
+  low: {
+    label: "Low",
+    className: "bg-slate-500/20 text-slate-400 border-slate-500/40",
+    icon: <ArrowDown className="h-3 w-3" />,
+  },
+}
+
+function PillBadge({
+  config,
+}: {
+  config: { label: string; className: string; icon: React.ReactNode }
+}) {
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
+        config.className
+      )}
+    >
+      {config.icon}
+      {config.label}
+    </span>
+  )
+}
 
 interface EpicTreeProps {
   epics: Epic[]
@@ -256,6 +325,13 @@ function EpicRow({
         <span className="font-medium text-foreground flex-1 truncate">
           {epic.title}
         </span>
+
+        {!isStandalone && (
+          <>
+            <PillBadge config={statusConfig[epic.status]} />
+            <PillBadge config={priorityConfig[epic.priority]} />
+          </>
+        )}
 
         {/* Enhanced Progress Bar */}
         <div className="flex items-center gap-3 shrink-0">

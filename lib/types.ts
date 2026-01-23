@@ -1,4 +1,4 @@
-export type BeadType = "bug" | "task" | "feature" | "epic" | "chore"
+export type BeadType = "bug" | "task" | "feature" | "epic" | "chore" | "message"
 export type BeadStatus = "open" | "in_progress" | "closed"
 export type BeadPriority = "critical" | "high" | "medium" | "low"
 

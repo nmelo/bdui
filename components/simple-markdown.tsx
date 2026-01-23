@@ -1,151 +1,97 @@
 "use client"
 
-import React from "react"
+import ReactMarkdown from "react-markdown"
 
 interface SimpleMarkdownProps {
   content: string
   className?: string
 }
 
-export function SimpleMarkdown({ content, className = "" }: SimpleMarkdownProps) {
-  // Simple markdown parser for common patterns
-  const parseMarkdown = (text: string) => {
-    const lines = text.split("\n")
-    const elements: React.ReactNode[] = []
-    let currentList: string[] = []
-    let listType: "ordered" | "unordered" | null = null
-
-    const flushList = () => {
-      if (currentList.length > 0) {
-        if (listType === "ordered") {
-          elements.push(
-            <ol key={`ol-${elements.length}`} className="list-decimal list-inside space-y-1 my-2 text-muted-foreground">
-              {currentList.map((item, i) => (
-                <li key={i}>{parseInline(item)}</li>
-              ))}
-            </ol>
-          )
-        } else {
-          elements.push(
-            <ul key={`ul-${elements.length}`} className="list-disc list-inside space-y-1 my-2 text-muted-foreground">
-              {currentList.map((item, i) => (
-                <li key={i}>{parseInline(item)}</li>
-              ))}
-            </ul>
-          )
-        }
-        currentList = []
-        listType = null
-      }
-    }
-
-    const parseInline = (text: string): React.ReactNode => {
-      // Code blocks inline
-      let result: React.ReactNode[] = []
-      const parts = text.split(/(`[^`]+`)/)
-      
-      parts.forEach((part, i) => {
-        if (part.startsWith("`") && part.endsWith("`")) {
-          result.push(
-            <code key={i} className="px-1.5 py-0.5 rounded bg-slate-700 text-emerald-400 text-xs font-mono">
-              {part.slice(1, -1)}
-            </code>
-          )
-        } else {
-          // Bold
-          const boldParts = part.split(/(\*\*[^*]+\*\*)/)
-          boldParts.forEach((bp, j) => {
-            if (bp.startsWith("**") && bp.endsWith("**")) {
-              result.push(<strong key={`${i}-${j}`} className="font-semibold text-foreground">{bp.slice(2, -2)}</strong>)
-            } else {
-              result.push(bp)
-            }
-          })
-        }
-      })
-      
-      return result
-    }
-
-    lines.forEach((line, index) => {
+// Preprocess content to convert ALL CAPS lines ending with : to markdown headers
+function preprocessContent(content: string): string {
+  return content
+    .split("\n")
+    .map((line) => {
       const trimmed = line.trim()
-
-      // Headers
-      if (trimmed.startsWith("## ")) {
-        flushList()
-        elements.push(
-          <h3 key={index} className="text-sm font-semibold text-foreground mt-4 mb-2">
-            {trimmed.slice(3)}
-          </h3>
-        )
-        return
+      // Match ALL CAPS lines ending with colon (e.g., "DELIVERABLE:", "OUTPUT FORMAT:")
+      if (/^[A-Z][A-Z\s]+:$/.test(trimmed)) {
+        return `#### ${trimmed}`
       }
-
-      if (trimmed.startsWith("# ")) {
-        flushList()
-        elements.push(
-          <h2 key={index} className="text-base font-semibold text-foreground mt-4 mb-2">
-            {trimmed.slice(2)}
-          </h2>
-        )
-        return
-      }
-
-      // Ordered list
-      const orderedMatch = trimmed.match(/^(\d+)\.\s+(.+)/)
-      if (orderedMatch) {
-        if (listType !== "ordered") {
-          flushList()
-          listType = "ordered"
-        }
-        currentList.push(orderedMatch[2])
-        return
-      }
-
-      // Unordered list
-      if (trimmed.startsWith("- ") || trimmed.startsWith("* ")) {
-        if (listType !== "unordered") {
-          flushList()
-          listType = "unordered"
-        }
-        currentList.push(trimmed.slice(2))
-        return
-      }
-
-      // Checkbox list
-      if (trimmed.startsWith("- [x]") || trimmed.startsWith("- [ ]")) {
-        flushList()
-        const checked = trimmed.startsWith("- [x]")
-        const text = trimmed.slice(6)
-        elements.push(
-          <div key={index} className="flex items-center gap-2 my-1">
-            <span className={`w-4 h-4 rounded border flex items-center justify-center text-xs ${checked ? "bg-emerald-500/20 border-emerald-500 text-emerald-400" : "border-slate-500"}`}>
-              {checked && "✓"}
-            </span>
-            <span className="text-muted-foreground">{parseInline(text)}</span>
-          </div>
-        )
-        return
-      }
-
-      // Empty line
-      if (trimmed === "") {
-        flushList()
-        return
-      }
-
-      // Regular paragraph
-      flushList()
-      elements.push(
-        <p key={index} className="text-sm text-muted-foreground my-2">
-          {parseInline(trimmed)}
-        </p>
-      )
+      return line
     })
+    .join("\n")
+}
 
-    flushList()
-    return elements
-  }
+export function SimpleMarkdown({ content, className = "" }: SimpleMarkdownProps) {
+  const processedContent = preprocessContent(content)
 
-  return <div className={className}>{parseMarkdown(content)}</div>
+  return (
+    <div className={className}>
+    <ReactMarkdown
+      components={{
+        h1: ({ children }) => (
+          <h1 className="text-lg font-semibold text-foreground mt-4 mb-2">{children}</h1>
+        ),
+        h2: ({ children }) => (
+          <h2 className="text-base font-semibold text-foreground mt-4 mb-2">{children}</h2>
+        ),
+        h3: ({ children }) => (
+          <h3 className="text-sm font-semibold text-foreground mt-3 mb-2">{children}</h3>
+        ),
+        h4: ({ children }) => (
+          <h4 className="text-sm font-semibold text-foreground mt-2 mb-0.5">{children}</h4>
+        ),
+        p: ({ children }) => (
+          <p className="text-sm text-muted-foreground my-1">{children}</p>
+        ),
+        ul: ({ children }) => (
+          <ul className="list-disc list-inside space-y-0.5 my-1 text-muted-foreground">{children}</ul>
+        ),
+        ol: ({ children }) => (
+          <ol className="list-decimal list-inside space-y-0.5 my-1 text-muted-foreground">{children}</ol>
+        ),
+        li: ({ children }) => <li className="text-sm">{children}</li>,
+        strong: ({ children }) => (
+          <strong className="font-semibold text-foreground">{children}</strong>
+        ),
+        em: ({ children }) => <em className="italic">{children}</em>,
+        code: ({ children }) => (
+          <code className="px-1.5 py-0.5 rounded bg-slate-700 text-emerald-400 text-xs font-mono">
+            {children}
+          </code>
+        ),
+        pre: ({ children }) => (
+          <pre className="p-3 rounded bg-slate-800 overflow-x-auto my-2 text-sm">{children}</pre>
+        ),
+        blockquote: ({ children }) => (
+          <blockquote className="border-l-2 border-slate-500 pl-3 my-2 text-muted-foreground italic">
+            {children}
+          </blockquote>
+        ),
+        a: ({ href, children }) => (
+          <a href={href} className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">
+            {children}
+          </a>
+        ),
+        hr: () => <hr className="my-4 border-border" />,
+        table: ({ children }) => (
+          <div className="overflow-x-auto my-2">
+            <table className="min-w-full text-sm border-collapse">{children}</table>
+          </div>
+        ),
+        thead: ({ children }) => <thead className="border-b border-border">{children}</thead>,
+        tbody: ({ children }) => <tbody>{children}</tbody>,
+        tr: ({ children }) => <tr className="border-b border-border/50">{children}</tr>,
+        th: ({ children }) => (
+          <th className="px-2 py-1.5 text-left font-medium text-foreground">{children}</th>
+        ),
+        td: ({ children }) => (
+          <td className="px-2 py-1.5 text-muted-foreground">{children}</td>
+        ),
+      }}
+    >
+      {processedContent}
+    </ReactMarkdown>
+    </div>
+  )
 }

@@ -18,6 +18,29 @@ fs.mkdirSync(distDir, { recursive: true });
 console.log('Copying standalone build...');
 fs.cpSync(standaloneDir, path.join(distDir, 'beads-ui'), { recursive: true });
 
+// Patch server.js to add graceful shutdown handlers
+console.log('Patching server.js for graceful shutdown...');
+const serverJsPath = path.join(distDir, 'beads-ui', 'server.js');
+let serverJs = fs.readFileSync(serverJsPath, 'utf8');
+
+// Add signal handlers at the end of the file
+const signalHandlers = `
+
+// Graceful shutdown handlers
+process.on('SIGINT', () => {
+  console.log('\\nShutting down...');
+  process.exit(0);
+});
+
+process.on('SIGTERM', () => {
+  console.log('Shutting down...');
+  process.exit(0);
+});
+`;
+
+serverJs += signalHandlers;
+fs.writeFileSync(serverJsPath, serverJs);
+
 // Copy static files
 console.log('Copying static files...');
 fs.cpSync(

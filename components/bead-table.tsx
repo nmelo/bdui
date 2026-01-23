@@ -15,6 +15,7 @@ import {
   ArrowUp,
   Minus,
   ArrowDown,
+  MessageSquare,
 } from "lucide-react"
 import {
   Table,
@@ -64,6 +65,11 @@ const typeConfig: Record<BeadType, { label: string; className: string; icon: Rea
     label: "Chore",
     className: "bg-slate-500/20 text-slate-400 border-slate-500/40",
     icon: <Wrench className="h-3 w-3" />,
+  },
+  message: {
+    label: "Message",
+    className: "bg-cyan-500/20 text-cyan-400 border-cyan-500/40",
+    icon: <MessageSquare className="h-3 w-3" />,
   },
 }
 

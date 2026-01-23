@@ -9,6 +9,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import { Checkbox } from "@/components/ui/checkbox"
+import { Label } from "@/components/ui/label"
 import type { BeadStatus, BeadPriority } from "@/lib/types"
 
 export interface Filters {
@@ -16,6 +18,7 @@ export interface Filters {
   assignee: string
   priority: BeadPriority | "all"
   search: string
+  showMessages: boolean
 }
 
 export type SortField = "title" | "priority" | "status" | "updated"
@@ -141,6 +144,18 @@ export function FilterBar({ filters, onFiltersChange, assignees, sort, onSortCha
           ))}
         </SelectContent>
       </Select>
+
+      {/* Show Messages Toggle */}
+      <div className="flex items-center gap-2">
+        <Checkbox
+          id="show-messages"
+          checked={filters.showMessages}
+          onCheckedChange={(checked) => updateFilter("showMessages", checked === true)}
+        />
+        <Label htmlFor="show-messages" className="text-sm text-muted-foreground cursor-pointer">
+          Show messages
+        </Label>
+      </div>
     </div>
   )
 }

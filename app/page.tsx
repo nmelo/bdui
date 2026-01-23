@@ -6,7 +6,7 @@ import { Header } from "@/components/header"
 import { EpicTree } from "@/components/epic-tree"
 import { BeadDetailModal } from "@/components/bead-detail-modal"
 import { FilterBar, type Filters, type SortOption } from "@/components/filter-bar"
-import { getEpics } from "@/actions/epics"
+import { getEpics, getBeadDetail } from "@/actions/epics"
 import { getWorkspaces } from "@/actions/workspaces"
 import { updateBeadStatus, updateBeadPriority, updateBeadParent, addComment as addCommentAction, deleteBead } from "@/actions/beads"
 import { useSSE } from "@/hooks/use-sse"
@@ -36,6 +36,10 @@ function extractAssignees(epics: Epic[]): string[] {
 
 // Filter beads based on criteria
 function matchesBead(bead: Bead, filters: Filters): boolean {
+  // Hide messages unless explicitly shown
+  if (!filters.showMessages && bead.type === "message") {
+    return false
+  }
   if (filters.status !== "all" && bead.status !== filters.status) {
     return false
   }
@@ -87,7 +91,8 @@ function filterEpics(epics: Epic[], filters: Filters): Epic[] {
     filters.status === "all" &&
     filters.priority === "all" &&
     filters.assignee === "all" &&
-    !filters.search
+    !filters.search &&
+    filters.showMessages
   ) {
     return epics
   }
@@ -184,6 +189,7 @@ function BeadsEpicsViewer() {
     status: "all",
     assignee: "all",
     priority: "all",
+    showMessages: false,
     search: "",
   })
   const [sort, setSort] = useState<SortOption>({ field: "updated", direction: "desc" })
@@ -205,11 +211,38 @@ function BeadsEpicsViewer() {
 
   // URL-based modal state
   const beadIdParam = searchParams.get("bead")
-  const selectedBead = useMemo(() => {
-    if (!beadIdParam || epics.length === 0) return null
-    return findBeadById(epics, beadIdParam)
-  }, [beadIdParam, epics])
+  const [selectedBead, setSelectedBead] = useState<Bead | null>(null)
+  const [isLoadingBead, setIsLoadingBead] = useState(false)
   const modalOpen = !!selectedBead
+
+  // Fetch full bead details (including comments) when modal opens
+  useEffect(() => {
+    if (!beadIdParam || epics.length === 0) {
+      setSelectedBead(null)
+      return
+    }
+
+    // First check if bead exists in cached data
+    const cachedBead = findBeadById(epics, beadIdParam)
+    if (!cachedBead) {
+      setSelectedBead(null)
+      return
+    }
+
+    // Show cached data immediately, then fetch full details with comments
+    setSelectedBead(cachedBead)
+    setIsLoadingBead(true)
+
+    getBeadDetail(beadIdParam, currentWorkspace?.databasePath)
+      .then((fullBead) => {
+        if (fullBead) {
+          setSelectedBead(fullBead)
+        }
+      })
+      .finally(() => {
+        setIsLoadingBead(false)
+      })
+  }, [beadIdParam, epics, currentWorkspace?.databasePath])
   const parentPath = useMemo(() => {
     if (!beadIdParam) return []
     return findParentPath(epics, beadIdParam) || []

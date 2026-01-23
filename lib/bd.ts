@@ -240,7 +240,7 @@ export async function updateParent(
 }
 
 // Map bd issue_type to our BeadType
-export function mapType(type?: string): "bug" | "task" | "feature" | "epic" | "chore" {
+export function mapType(type?: string): "bug" | "task" | "feature" | "epic" | "chore" | "message" {
   if (!type) return "task"
   switch (type.toLowerCase()) {
     case "bug":
@@ -251,6 +251,8 @@ export function mapType(type?: string): "bug" | "task" | "feature" | "epic" | "c
       return "epic"
     case "chore":
       return "chore"
+    case "message":
+      return "message"
     case "task":
     default:
       return "task"

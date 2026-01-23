@@ -85,6 +85,7 @@ const typeColors: Record<string, string> = {
   feature: "bg-purple-500/20 text-purple-400 border-purple-500/30",
   epic: "bg-amber-500/20 text-amber-400 border-amber-500/30",
   chore: "bg-slate-500/20 text-slate-400 border-slate-500/30",
+  message: "bg-cyan-500/20 text-cyan-400 border-cyan-500/30",
 }
 
 const authorColors = [
@@ -401,7 +402,7 @@ export function BeadDetailModal({
                   </button>
                 </DropdownMenuTrigger>
                 <DropdownMenuContent align="start">
-                  {(["bug", "task", "feature", "chore", "epic"] as BeadType[]).map((t) => (
+                  {(["bug", "task", "feature", "chore", "epic", "message"] as BeadType[]).map((t) => (
                     <DropdownMenuItem key={t} onClick={() => handleTypeChange(t)} className="capitalize">
                       {t}
                     </DropdownMenuItem>
@@ -461,17 +462,14 @@ export function BeadDetailModal({
         <div className="flex-1 min-h-0 flex overflow-hidden">
           {/* Main content - scrollable */}
           <ScrollArea className="flex-1">
-            <div className="p-5 space-y-5">
+            <div className="px-5 pt-2 pb-5 space-y-4">
               {/* Description */}
-              <div>
-                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Description</h3>
-                <div className="prose prose-sm prose-invert max-w-none text-foreground/90">
-                  {description ? (
-                    <SimpleMarkdown content={description} />
-                  ) : (
-                    <p className="text-muted-foreground/50 italic">No description</p>
-                  )}
-                </div>
+              <div className="prose prose-sm prose-invert max-w-none text-foreground/90">
+                {description ? (
+                  <SimpleMarkdown content={description} />
+                ) : (
+                  <p className="text-muted-foreground/50 italic">No description</p>
+                )}
               </div>
 
               {/* Acceptance Criteria - if exists */}
@@ -560,13 +558,13 @@ export function BeadDetailModal({
               <h4 className="text-xs font-medium text-muted-foreground uppercase tracking-wide px-1 pb-2">Details</h4>
 
               {/* Status */}
-              <div className="flex items-center justify-between py-1.5 px-1 rounded hover:bg-muted/20 transition-colors">
-                <span className="text-xs text-muted-foreground">Status</span>
+              <div className="py-1.5 px-1 rounded hover:bg-muted/20 transition-colors">
+                <span className="text-xs text-muted-foreground block mb-1">Status</span>
                 <Select value={status} onValueChange={(value: BeadStatus) => handleStatusChange(value)}>
                   <SelectTrigger
                     disabled={fieldStates.status.isSaving}
                     className={cn(
-                      "w-[6.5rem] h-6 px-2 rounded border-0 text-xs font-medium bg-transparent justify-end",
+                      "w-full h-7 px-2 rounded border-border/40 text-xs font-medium bg-transparent justify-start",
                       status === "open" && "text-emerald-400",
                       status === "in_progress" && "text-blue-400",
                       status === "closed" && "text-slate-400",
@@ -584,13 +582,13 @@ export function BeadDetailModal({
               </div>
 
               {/* Priority */}
-              <div className="flex items-center justify-between py-1.5 px-1 rounded hover:bg-muted/20 transition-colors">
-                <span className="text-xs text-muted-foreground">Priority</span>
+              <div className="py-1.5 px-1 rounded hover:bg-muted/20 transition-colors">
+                <span className="text-xs text-muted-foreground block mb-1">Priority</span>
                 <Select value={priority} onValueChange={(value: BeadPriority) => handlePriorityChange(value)}>
                   <SelectTrigger
                     disabled={fieldStates.priority.isSaving}
                     className={cn(
-                      "w-[6.5rem] h-6 px-2 rounded border-0 text-xs font-medium bg-transparent justify-end",
+                      "w-full h-7 px-2 rounded border-border/40 text-xs font-medium bg-transparent justify-start",
                       priority === "critical" && "text-red-400",
                       priority === "high" && "text-orange-400",
                       priority === "medium" && "text-yellow-400",
@@ -610,8 +608,8 @@ export function BeadDetailModal({
               </div>
 
               {/* Assignee */}
-              <div className="flex items-center justify-between py-1.5 px-1 rounded hover:bg-muted/20 transition-colors">
-                <span className="text-xs text-muted-foreground">Assignee</span>
+              <div className="py-1.5 px-1 rounded hover:bg-muted/20 transition-colors">
+                <span className="text-xs text-muted-foreground block mb-1">Assignee</span>
                 {isAddingAssignee ? (
                   <div className="flex items-center gap-1">
                     <Input
@@ -626,13 +624,13 @@ export function BeadDetailModal({
                       }}
                       placeholder="Name..."
                       autoFocus
-                      className="w-20 h-6 bg-transparent border-border/40 text-foreground text-xs focus:border-primary"
+                      className="flex-1 h-7 bg-transparent border-border/40 text-foreground text-xs focus:border-primary"
                     />
                     <Button
                       onClick={handleAddNewAssignee}
                       size="sm"
                       variant="ghost"
-                      className="h-6 w-6 p-0"
+                      className="h-7 w-7 p-0"
                       disabled={!newAssigneeName.trim()}
                     >
                       <Plus className="h-3 w-3" />
@@ -654,7 +652,7 @@ export function BeadDetailModal({
                     <SelectTrigger
                       disabled={fieldStates.assignee.isSaving}
                       className={cn(
-                        "w-[6.5rem] h-6 px-2 rounded border-0 text-xs font-medium bg-transparent text-foreground justify-end",
+                        "w-full h-7 px-2 rounded border-border/40 text-xs font-medium bg-transparent text-foreground justify-start",
                         !assignee && "text-muted-foreground",
                         fieldStates.assignee.hasError && "ring-1 ring-destructive"
                       )}
