@@ -24,7 +24,6 @@ import type { Bead, BeadType, BeadStatus, BeadPriority, Comment } from "@/lib/ty
 import { cn } from "@/lib/utils"
 import {
   CheckCircle2,
-  ChevronRight,
   X,
   Plus,
   Trash2,
@@ -324,28 +323,8 @@ export function BeadDetailPanel({
   return (
     <div className="h-full flex flex-col">
       {/* Header */}
-      <div className="pb-4 border-b border-border shrink-0">
+      <div className="-mx-4 px-6 pt-4 pb-4 bg-card border-b border-border shrink-0">
         <TooltipProvider>
-          {/* Breadcrumb */}
-          {parentPath.length > 0 && (
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground mb-3 flex-wrap">
-              {parentPath.map((parent, index) => (
-                <span key={parent.id} className="flex items-center gap-1.5">
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="max-w-32 truncate cursor-default hover:text-foreground transition-colors">{parent.title}</span>
-                    </TooltipTrigger>
-                    <TooltipContent side="bottom" className="max-w-xs">
-                      <p className="font-mono text-xs mb-1">{parent.id}</p>
-                      <p>{parent.title}</p>
-                    </TooltipContent>
-                  </Tooltip>
-                  <ChevronRight className="h-3 w-3 text-muted-foreground/50" />
-                </span>
-              ))}
-            </div>
-          )}
-
           {/* Title row with Type badge and actions */}
           <div className="flex items-start justify-between gap-2">
             <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -439,62 +418,64 @@ export function BeadDetailPanel({
       <div className="flex-1 overflow-y-auto min-h-0">
         <div className="py-4 space-y-4">
           {/* Properties section */}
-          <div className="space-y-3">
-            {/* Status */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground w-16 shrink-0">Status</span>
-              <Select value={status} onValueChange={(value: BeadStatus) => handleStatusChange(value)}>
-                <SelectTrigger
-                  disabled={fieldStates.status.isSaving}
-                  className={cn(
-                    "flex-1 h-7 px-2 rounded border-border/40 text-xs font-medium bg-transparent",
-                    status === "open" && "text-emerald-400",
-                    status === "in_progress" && "text-blue-400",
-                    status === "closed" && "text-slate-400",
-                    fieldStates.status.hasError && "ring-1 ring-destructive"
-                  )}
-                >
-                  {fieldStates.status.isSaving ? <Spinner className="h-3 w-3" /> : <SelectValue />}
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="open"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Open</span></SelectItem>
-                  <SelectItem value="in_progress"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-blue-500" />In Progress</span></SelectItem>
-                  <SelectItem value="closed"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-slate-500" />Closed</span></SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+          <div className="-mx-4 px-6 py-4 bg-muted/10 border-y border-border/20 space-y-3">
+            {/* Status, Priority, Assignee, Labels - 4 column grid */}
+            <div className="grid grid-cols-4 gap-3">
+              {/* Status */}
+              <div>
+                <span className="text-xs text-muted-foreground block mb-1">Status</span>
+                <Select value={status} onValueChange={(value: BeadStatus) => handleStatusChange(value)}>
+                  <SelectTrigger
+                    disabled={fieldStates.status.isSaving}
+                    className={cn(
+                      "w-full h-8 px-2 rounded border-border/40 text-xs font-medium bg-transparent",
+                      status === "open" && "text-emerald-400",
+                      status === "in_progress" && "text-blue-400",
+                      status === "closed" && "text-slate-400",
+                      fieldStates.status.hasError && "ring-1 ring-destructive"
+                    )}
+                  >
+                    {fieldStates.status.isSaving ? <Spinner className="h-3 w-3" /> : <SelectValue />}
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="open"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Open</span></SelectItem>
+                    <SelectItem value="in_progress"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-blue-500" />In Progress</span></SelectItem>
+                    <SelectItem value="closed"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-slate-500" />Closed</span></SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            {/* Priority */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground w-16 shrink-0">Priority</span>
-              <Select value={priority} onValueChange={(value: BeadPriority) => handlePriorityChange(value)}>
-                <SelectTrigger
-                  disabled={fieldStates.priority.isSaving}
-                  className={cn(
-                    "flex-1 h-7 px-2 rounded border-border/40 text-xs font-medium bg-transparent",
-                    priority === "critical" && "text-red-400",
-                    priority === "high" && "text-orange-400",
-                    priority === "medium" && "text-yellow-400",
-                    priority === "low" && "text-slate-400",
-                    fieldStates.priority.hasError && "ring-1 ring-destructive"
-                  )}
-                >
-                  {fieldStates.priority.isSaving ? <Spinner className="h-3 w-3" /> : <SelectValue />}
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="critical"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-red-500" />Critical</span></SelectItem>
-                  <SelectItem value="high"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-orange-500" />High</span></SelectItem>
-                  <SelectItem value="medium"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />Medium</span></SelectItem>
-                  <SelectItem value="low"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-slate-500" />Low</span></SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+              {/* Priority */}
+              <div>
+                <span className="text-xs text-muted-foreground block mb-1">Priority</span>
+                <Select value={priority} onValueChange={(value: BeadPriority) => handlePriorityChange(value)}>
+                  <SelectTrigger
+                    disabled={fieldStates.priority.isSaving}
+                    className={cn(
+                      "w-full h-8 px-2 rounded border-border/40 text-xs font-medium bg-transparent",
+                      priority === "critical" && "text-red-400",
+                      priority === "high" && "text-orange-400",
+                      priority === "medium" && "text-yellow-400",
+                      priority === "low" && "text-slate-400",
+                      fieldStates.priority.hasError && "ring-1 ring-destructive"
+                    )}
+                  >
+                    {fieldStates.priority.isSaving ? <Spinner className="h-3 w-3" /> : <SelectValue />}
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="critical"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-red-500" />Critical</span></SelectItem>
+                    <SelectItem value="high"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-orange-500" />High</span></SelectItem>
+                    <SelectItem value="medium"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />Medium</span></SelectItem>
+                    <SelectItem value="low"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-slate-500" />Low</span></SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
 
-            {/* Assignee */}
-            <div className="flex items-center gap-3">
-              <span className="text-xs text-muted-foreground w-16 shrink-0">Assignee</span>
+              {/* Assignee */}
+              <div>
+                <span className="text-xs text-muted-foreground block mb-1">Assignee</span>
               {isAddingAssignee ? (
-                <div className="flex items-center gap-1 flex-1">
+                <div className="flex items-center gap-1">
                   <Input
                     value={newAssigneeName}
                     onChange={(e) => setNewAssigneeName(e.target.value)}
@@ -507,13 +488,13 @@ export function BeadDetailPanel({
                     }}
                     placeholder="Name..."
                     autoFocus
-                    className="flex-1 h-7 bg-transparent border-border/40 text-foreground text-xs focus:border-primary"
+                    className="flex-1 h-8 bg-transparent border-border/40 text-foreground text-xs focus:border-primary"
                   />
                   <Button
                     onClick={handleAddNewAssignee}
                     size="sm"
                     variant="ghost"
-                    className="h-7 w-7 p-0"
+                    className="h-8 w-8 p-0"
                     disabled={!newAssigneeName.trim()}
                   >
                     <Plus className="h-3 w-3" />
@@ -535,7 +516,7 @@ export function BeadDetailPanel({
                   <SelectTrigger
                     disabled={fieldStates.assignee.isSaving}
                     className={cn(
-                      "flex-1 h-7 px-2 rounded border-border/40 text-xs font-medium bg-transparent text-foreground",
+                      "w-full h-8 px-2 rounded border-border/40 text-xs font-medium bg-transparent text-foreground",
                       !assignee && "text-muted-foreground",
                       fieldStates.assignee.hasError && "ring-1 ring-destructive"
                     )}
@@ -564,35 +545,32 @@ export function BeadDetailPanel({
                   </SelectContent>
                 </Select>
               )}
-            </div>
+              </div>
 
-            {/* Labels */}
-            <div className="flex items-start gap-3">
-              <span className="text-xs text-muted-foreground w-16 shrink-0 pt-1.5">Labels</span>
-              <div className="flex-1">
-                <div className="flex flex-wrap gap-1 mb-2">
-                  {labels.length > 0 ? labels.map((label) => (
-                    <Badge key={label} variant="secondary" className="text-[10px] px-1.5 py-0 h-5 rounded bg-muted/40">
+              {/* Labels */}
+              <div>
+                <span className="text-xs text-muted-foreground block mb-1">Labels</span>
+                <div className="flex flex-wrap gap-1 items-center h-8 px-2 rounded border border-border/40 overflow-hidden">
+                  {labels.map((label) => (
+                    <Badge key={label} variant="secondary" className="text-[10px] px-1.5 py-0 h-5 rounded bg-muted/40 shrink-0">
                       {label}
                       <button onClick={() => handleRemoveLabel(label)} className="ml-1 hover:text-red-400">
                         <X className="h-2.5 w-2.5" />
                       </button>
                     </Badge>
-                  )) : (
-                    <span className="text-[10px] text-muted-foreground/50">No labels</span>
-                  )}
-                </div>
-                <div className="flex gap-1">
-                  <Input
+                  ))}
+                  <input
                     value={newLabel}
                     onChange={(e) => setNewLabel(e.target.value)}
-                    onKeyDown={(e) => e.key === "Enter" && handleAddLabel()}
-                    placeholder="Add label..."
-                    className="h-6 text-xs bg-transparent border-border/40 focus:border-primary"
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        e.preventDefault()
+                        handleAddLabel()
+                      }
+                    }}
+                    placeholder={labels.length === 0 ? "Add..." : "+"}
+                    className="flex-1 min-w-8 h-6 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/50 outline-none"
                   />
-                  <Button onClick={handleAddLabel} size="sm" variant="ghost" className="h-6 w-6 p-0">
-                    <Plus className="h-3 w-3" />
-                  </Button>
                 </div>
               </div>
             </div>
@@ -621,7 +599,7 @@ export function BeadDetailPanel({
           )}
 
           {/* Activity/Comments section */}
-          <div className="pt-4 border-t border-border/30">
+          <div className="mt-6 -mx-4 pl-8 pr-6 py-5 bg-muted/10 border-y border-border/20">
             <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
               Activity {bead.comments.length > 0 && `(${bead.comments.length})`}
             </h3>

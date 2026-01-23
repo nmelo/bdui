@@ -46,13 +46,20 @@ export function SimpleMarkdown({ content, className = "" }: SimpleMarkdownProps)
         p: ({ children }) => (
           <p className="text-sm text-muted-foreground my-1">{children}</p>
         ),
-        ul: ({ children }) => (
-          <ul className="list-disc list-inside space-y-0.5 my-1 text-muted-foreground">{children}</ul>
+        ul: ({ className, children }) => (
+          <ul className={`space-y-0.5 my-1 text-muted-foreground ${className?.includes("contains-task-list") ? "list-none" : "list-disc list-inside"}`}>{children}</ul>
         ),
         ol: ({ children }) => (
           <ol className="list-decimal list-inside space-y-0.5 my-1 text-muted-foreground">{children}</ol>
         ),
-        li: ({ children }) => <li className="text-sm">{children}</li>,
+        li: ({ className, children }) => (
+          <li className={`text-sm ${className?.includes("task-list-item") ? "flex items-start gap-2" : ""}`}>{children}</li>
+        ),
+        input: ({ checked, type }) => (
+          type === "checkbox" ? (
+            <input type="checkbox" checked={checked} readOnly className="mt-0.5 accent-primary" />
+          ) : null
+        ),
         strong: ({ children }) => (
           <strong className="font-semibold text-foreground">{children}</strong>
         ),
