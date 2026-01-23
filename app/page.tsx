@@ -9,7 +9,7 @@ import { FilterBar, type Filters, type SortOption } from "@/components/filter-ba
 import { getEpics, getBeadDetail } from "@/actions/epics"
 import { getWorkspaces } from "@/actions/workspaces"
 import { updateBeadStatus, updateBeadPriority, updateBeadParent, addComment as addCommentAction, deleteBead } from "@/actions/beads"
-import { useSSE } from "@/hooks/use-sse"
+import { useWebSocket } from "@/hooks/use-websocket"
 import { getWorkspaceCookie, setWorkspaceCookie } from "@/lib/workspace-cookie"
 import type { Workspace, Epic, Bead, BeadStatus, BeadPriority, Comment } from "@/lib/types"
 import { toast } from "sonner"
@@ -437,7 +437,7 @@ function BeadsEpicsViewer() {
     loadEpics()
   }, [loadEpics])
 
-  useSSE({
+  useWebSocket({
     dbPath: currentWorkspace?.databasePath,
     onChange: handleSSEChange,
     enabled: !!currentWorkspace,

@@ -111,7 +111,7 @@ async function bdExecRaw(args: string[], options: BdOptions = {}): Promise<strin
 
 // List all epics
 export async function listEpics(options: BdOptions = {}): Promise<BdBead[]> {
-  return bdExec<BdBead[]>(["list", "--type", "epic", "--status", "all"], options)
+  return bdExec<BdBead[]>(["list", "--type", "epic", "--status", "all", "--limit", "0"], options)
 }
 
 // Get epic status counters (total_children, closed_children for each epic)
@@ -197,7 +197,7 @@ export async function deleteBead(id: string, options: BdOptions = {}): Promise<v
 
 // List all beads (not just epics)
 export async function listBeads(options: BdOptions = {}): Promise<BdBead[]> {
-  return bdExec<BdBead[]>(["list", "--status", "all"], options)
+  return bdExec<BdBead[]>(["list", "--status", "all", "--limit", "0"], options)
 }
 
 // Get beads that are ready (no blockers)
