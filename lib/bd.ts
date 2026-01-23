@@ -12,7 +12,7 @@ export interface BdBead {
   id: string
   title: string
   description?: string
-  status: "open" | "in_progress" | "closed"
+  status: "open" | "in_progress" | "closed" | "tombstone"
   priority: number // 0-4 (0=critical, 4=low)
   issue_type: "bug" | "feature" | "task" | "epic" | "chore"
   assignee?: string
@@ -21,6 +21,7 @@ export interface BdBead {
   created_at: number
   updated_at: number
   closed_at?: number
+  deleted_at?: string
   acceptance_criteria?: string
   notes?: string
   // Dependency fields (when this bead is a dependent of another)
@@ -248,7 +249,7 @@ export async function updateParent(
 }
 
 // Map bd issue_type to our BeadType
-export function mapType(type?: string): "bug" | "task" | "feature" | "epic" | "chore" | "message" {
+export function mapType(type?: string): "bug" | "task" | "feature" | "epic" | "chore" | "message" | "gate" {
   if (!type) return "task"
   switch (type.toLowerCase()) {
     case "bug":
@@ -261,6 +262,8 @@ export function mapType(type?: string): "bug" | "task" | "feature" | "epic" | "c
       return "chore"
     case "message":
       return "message"
+    case "gate":
+      return "gate"
     case "task":
     default:
       return "task"

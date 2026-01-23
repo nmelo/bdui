@@ -59,20 +59,27 @@ const priorityConfig: Record<BeadPriority, { label: string; className: string; i
   },
 }
 
+const fallbackConfig = {
+  label: "Unknown",
+  className: "bg-slate-500/20 text-slate-400 border-slate-500/40",
+  icon: <Circle className="h-3 w-3" />,
+}
+
 function PillBadge({
   config,
 }: {
-  config: { label: string; className: string; icon: React.ReactNode }
+  config: { label: string; className: string; icon: React.ReactNode } | undefined
 }) {
+  const c = config || fallbackConfig
   return (
     <span
       className={cn(
         "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors",
-        config.className
+        c.className
       )}
     >
-      {config.icon}
-      {config.label}
+      {c.icon}
+      {c.label}
     </span>
   )
 }

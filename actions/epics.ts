@@ -122,6 +122,8 @@ async function buildEpicHierarchy(options: BdOptions = {}): Promise<Epic[]> {
 
     for (const dependent of dependents) {
       if (dependent.dependency_type !== "parent-child") continue
+      // Skip deleted/tombstoned beads
+      if (dependent.status === "tombstone" || dependent.deleted_at) continue
 
       if (dependent.issue_type === "epic") {
         // Child epic
