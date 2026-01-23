@@ -270,6 +270,12 @@ function BeadsEpicsViewer() {
   // Delete confirmation state
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
+  // Keyboard navigation focus state (separate from URL-based selection)
+  const [focusedItemId, setFocusedItemId] = useState<string | null>(null)
+
+  // Ref for scrolling focused items into view
+  const treeContainerRef = useRef<HTMLDivElement>(null)
+
   // Fetch full bead details (including comments) when modal opens
   useEffect(() => {
     if (!beadIdParam || epics.length === 0) {
@@ -337,6 +343,33 @@ function BeadsEpicsViewer() {
   const assignees = useMemo(() => extractAssignees(epics), [epics])
   const filteredEpics = useMemo(() => filterEpics(epics, filters), [epics, filters])
   const sortedEpics = useMemo(() => sortEpics(filteredEpics, sort), [filteredEpics, sort])
+
+  // Computed flat list of navigable items (respects expand/collapse state)
+  // Includes bead reference and builds id→index map to avoid O(n) lookups on each keypress
+  const { navigableItems, itemIndexMap } = useMemo(() => {
+    const items: { id: string; type: "epic" | "bead"; bead: Bead }[] = []
+    const indexMap = new Map<string, number>()
+
+    function addBead(bead: Bead) {
+      indexMap.set(bead.id, items.length)
+      items.push({ id: bead.id, type: "bead", bead })
+      if (expandedBeads.has(bead.id) && bead.children) {
+        bead.children.forEach(addBead)
+      }
+    }
+
+    function addEpic(epic: Epic) {
+      indexMap.set(epic.id, items.length)
+      items.push({ id: epic.id, type: "epic", bead: epic })
+      if (expandedEpics.has(epic.id)) {
+        epic.childEpics?.forEach(addEpic)
+        epic.children.forEach(addBead)
+      }
+    }
+
+    sortedEpics.forEach(addEpic)
+    return { navigableItems: items, itemIndexMap: indexMap }
+  }, [sortedEpics, expandedEpics, expandedBeads])
 
   // Fetch workspaces on mount and restore saved selection
   useEffect(() => {
@@ -429,6 +462,94 @@ function BeadsEpicsViewer() {
     params.delete("bead")
     router.replace(`?${params.toString()}`, { scroll: false })
   }, [searchParams, router])
+
+  // Keyboard navigation handler
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Skip if user is typing in an input or textarea
+      if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) {
+        return
+      }
+
+      // O(1) lookup instead of O(n) findIndex
+      const currentIndex = focusedItemId ? (itemIndexMap.get(focusedItemId) ?? -1) : -1
+
+      switch (e.key) {
+        case "ArrowDown":
+        case "j":
+          e.preventDefault()
+          if (currentIndex < navigableItems.length - 1) {
+            setFocusedItemId(navigableItems[currentIndex + 1].id)
+          } else if (currentIndex === -1 && navigableItems.length > 0) {
+            setFocusedItemId(navigableItems[0].id)
+          }
+          break
+
+        case "ArrowUp":
+        case "k":
+          e.preventDefault()
+          if (currentIndex > 0) {
+            setFocusedItemId(navigableItems[currentIndex - 1].id)
+          }
+          break
+
+        case "ArrowRight":
+        case "l":
+          e.preventDefault()
+          if (focusedItemId) {
+            const item = navigableItems[currentIndex]
+            if (item?.type === "epic" && !expandedEpics.has(focusedItemId)) {
+              handleToggleEpic(focusedItemId)
+            } else if (item?.type === "bead" && !expandedBeads.has(focusedItemId)) {
+              handleToggleBead(focusedItemId)
+            }
+          }
+          break
+
+        case "ArrowLeft":
+        case "h":
+          e.preventDefault()
+          if (focusedItemId) {
+            const item = navigableItems[currentIndex]
+            if (item?.type === "epic" && expandedEpics.has(focusedItemId)) {
+              handleToggleEpic(focusedItemId)
+            } else if (item?.type === "bead" && expandedBeads.has(focusedItemId)) {
+              handleToggleBead(focusedItemId)
+            }
+          }
+          break
+
+        case "Enter":
+        case " ":
+          e.preventDefault()
+          if (focusedItemId && currentIndex >= 0) {
+            // Use bead from navigableItems instead of O(n) findBeadById
+            handleBeadClick(navigableItems[currentIndex].bead)
+          }
+          break
+
+        case "Escape":
+          e.preventDefault()
+          if (beadIdParam) {
+            handleCloseDetail()
+          } else {
+            setFocusedItemId(null)
+          }
+          break
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown)
+    return () => window.removeEventListener("keydown", handleKeyDown)
+  }, [focusedItemId, navigableItems, itemIndexMap, expandedEpics, expandedBeads, beadIdParam, handleToggleEpic, handleToggleBead, handleBeadClick, handleCloseDetail])
+
+  // Scroll focused item into view
+  useEffect(() => {
+    if (focusedItemId && treeContainerRef.current) {
+      const element = treeContainerRef.current.querySelector(`[data-item-id="${focusedItemId}"]`)
+      element?.scrollIntoView({ block: "nearest", behavior: "smooth" })
+    }
+  }, [focusedItemId])
 
   const updateBeadInEpics = (beadId: string, updateFn: (bead: Bead) => Bead) => {
     // Recursively update a bead and its children
@@ -590,7 +711,7 @@ function BeadsEpicsViewer() {
 
         <div className="flex-1 flex gap-4 min-h-0">
           {/* Epic Tree - Left Panel */}
-          <div className="flex-[11] overflow-y-auto">
+          <div ref={treeContainerRef} className="flex-[11] overflow-y-auto">
             {isLoading && epics.length === 0 ? (
               <div className="text-center py-12 text-muted-foreground">
                 Loading epics...
@@ -613,6 +734,8 @@ function BeadsEpicsViewer() {
                 draggedBeadId={draggedBeadId}
                 expandedBeads={expandedBeads}
                 onToggleBead={handleToggleBead}
+                focusedItemId={focusedItemId}
+                onFocusItem={setFocusedItemId}
               />
             ) : (
               <div className="text-center py-12 text-muted-foreground">

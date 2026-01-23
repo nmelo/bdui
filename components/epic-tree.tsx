@@ -94,6 +94,8 @@ interface EpicTreeProps {
   draggedBeadId?: string | null
   expandedBeads?: Set<string>
   onToggleBead?: (beadId: string) => void
+  focusedItemId?: string | null
+  onFocusItem?: (id: string | null) => void
 }
 
 // Depth-based left border colors
@@ -172,6 +174,8 @@ export function EpicTree({
   draggedBeadId,
   expandedBeads,
   onToggleBead,
+  focusedItemId,
+  onFocusItem,
 }: EpicTreeProps) {
   return (
     <div className="space-y-3">
@@ -195,6 +199,8 @@ export function EpicTree({
           draggedBeadId={draggedBeadId}
           expandedBeads={expandedBeads}
           onToggleBead={onToggleBead}
+          focusedItemId={focusedItemId}
+          onFocusItem={onFocusItem}
         />
       ))}
 
@@ -249,6 +255,8 @@ interface EpicRowProps {
   draggedBeadId?: string | null
   expandedBeads?: Set<string>
   onToggleBead?: (beadId: string) => void
+  focusedItemId?: string | null
+  onFocusItem?: (id: string | null) => void
 }
 
 function EpicRow({
@@ -269,6 +277,8 @@ function EpicRow({
   draggedBeadId,
   expandedBeads,
   onToggleBead,
+  focusedItemId,
+  onFocusItem,
 }: EpicRowProps) {
   const isExpanded = expandedEpics.has(epic.id)
   const { closed: closedCount, total: totalCount } = getAggregatedCounts(epic)
@@ -287,11 +297,13 @@ function EpicRow({
 
   return (
     <Card
+      data-item-id={epic.id}
       className={cn(
         "overflow-hidden border-l-4 border-border/50 !py-0 !gap-0",
         borderColor,
         bg,
-        shadow
+        shadow,
+        focusedItemId === epic.id && "ring-2 ring-primary"
       )}
       style={{ marginLeft: depthMargin }}
     >
@@ -460,6 +472,8 @@ function EpicRow({
                   draggedBeadId={draggedBeadId}
                   expandedBeads={expandedBeads}
                   onToggleBead={onToggleBead}
+                  focusedItemId={focusedItemId}
+                  onFocusItem={onFocusItem}
                 />
               ))}
             </div>
@@ -480,6 +494,8 @@ function EpicRow({
                 draggedBeadId={draggedBeadId}
                 expandedBeads={expandedBeads}
                 onToggleBead={onToggleBead}
+                focusedItemId={focusedItemId}
+                onFocusItem={onFocusItem}
               />
             </div>
           )}

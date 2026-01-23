@@ -44,6 +44,8 @@ interface BeadTableProps {
   draggedBeadId?: string | null
   expandedBeads?: Set<string>
   onToggleBead?: (beadId: string) => void
+  focusedItemId?: string | null
+  onFocusItem?: (id: string | null) => void
 }
 
 // Depth-based left border colors for nested subtasks
@@ -67,6 +69,8 @@ interface BeadRowProps {
   draggedBeadId?: string | null
   expandedBeads?: Set<string>
   onToggleBead?: (beadId: string) => void
+  focusedItemId?: string | null
+  onFocusItem?: (id: string | null) => void
 }
 
 function BeadRow({
@@ -81,6 +85,8 @@ function BeadRow({
   draggedBeadId,
   expandedBeads,
   onToggleBead,
+  focusedItemId,
+  onFocusItem,
 }: BeadRowProps) {
   const hasChildren = bead.children && bead.children.length > 0
   const isExpanded = expandedBeads?.has(bead.id) ?? false
@@ -90,6 +96,7 @@ function BeadRow({
     <>
       <TableRow
         draggable
+        data-item-id={bead.id}
         onDragStart={(e) => {
           e.dataTransfer.setData("text/plain", JSON.stringify({ beadId: bead.id, sourceEpicId: epicId, type: "bead" }))
           e.dataTransfer.effectAllowed = "move"
@@ -99,7 +106,8 @@ function BeadRow({
         className={cn(
           "border-border/50 hover:bg-white/5 cursor-pointer transition-colors border-l-2",
           borderColor,
-          draggedBeadId === bead.id && "opacity-50"
+          draggedBeadId === bead.id && "opacity-50",
+          focusedItemId === bead.id && "outline outline-2 outline-primary -outline-offset-2"
         )}
         onClick={() => onBeadClick(bead)}
       >
@@ -186,6 +194,8 @@ function BeadRow({
           draggedBeadId={draggedBeadId}
           expandedBeads={expandedBeads}
           onToggleBead={onToggleBead}
+          focusedItemId={focusedItemId}
+          onFocusItem={onFocusItem}
         />
       ))}
     </>
@@ -295,6 +305,8 @@ export function BeadTable({
   draggedBeadId,
   expandedBeads,
   onToggleBead,
+  focusedItemId,
+  onFocusItem,
 }: BeadTableProps) {
   return (
     <Table>
@@ -324,6 +336,8 @@ export function BeadTable({
             draggedBeadId={draggedBeadId}
             expandedBeads={expandedBeads}
             onToggleBead={onToggleBead}
+            focusedItemId={focusedItemId}
+            onFocusItem={onFocusItem}
           />
         ))}
       </TableBody>
