@@ -361,7 +361,34 @@ function EpicRow({
 
         {!isStandalone && (
           <>
-            <PillBadge config={statusConfig[epic.status]} />
+            <div
+              role="button"
+              tabIndex={0}
+              onClick={(e) => {
+                e.stopPropagation()
+                const nextStatus: Record<BeadStatus, BeadStatus> = {
+                  open: "in_progress",
+                  in_progress: "closed",
+                  closed: "open",
+                }
+                onStatusChange(epic.id, nextStatus[epic.status])
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.stopPropagation()
+                  e.preventDefault()
+                  const nextStatus: Record<BeadStatus, BeadStatus> = {
+                    open: "in_progress",
+                    in_progress: "closed",
+                    closed: "open",
+                  }
+                  onStatusChange(epic.id, nextStatus[epic.status])
+                }
+              }}
+              className="hover:opacity-80 transition-opacity cursor-pointer"
+            >
+              <PillBadge config={statusConfig[epic.status]} />
+            </div>
             <PillBadge config={priorityConfig[epic.priority]} />
           </>
         )}

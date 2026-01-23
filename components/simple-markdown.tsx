@@ -1,6 +1,7 @@
 "use client"
 
 import ReactMarkdown from "react-markdown"
+import remarkGfm from "remark-gfm"
 
 interface SimpleMarkdownProps {
   content: string
@@ -28,6 +29,7 @@ export function SimpleMarkdown({ content, className = "" }: SimpleMarkdownProps)
   return (
     <div className={className}>
     <ReactMarkdown
+      remarkPlugins={[remarkGfm]}
       components={{
         h1: ({ children }) => (
           <h1 className="text-lg font-semibold text-foreground mt-4 mb-2">{children}</h1>

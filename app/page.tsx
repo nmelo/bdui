@@ -4,7 +4,7 @@ import { useState, useEffect, useMemo, useTransition, useCallback, Suspense, use
 import { useSearchParams, useRouter } from "next/navigation"
 import { Header } from "@/components/header"
 import { EpicTree } from "@/components/epic-tree"
-import { BeadDetailModal } from "@/components/bead-detail-modal"
+import { BeadDetailPanel } from "@/components/bead-detail-panel"
 import { FilterBar, type Filters, type SortOption } from "@/components/filter-bar"
 import { getEpics, getBeadDetail } from "@/actions/epics"
 import { getWorkspaces } from "@/actions/workspaces"
@@ -262,11 +262,10 @@ function BeadsEpicsViewer() {
   // Local state for expanded beads (subtasks) - kept separate from URL to avoid clutter
   const [expandedBeads, setExpandedBeads] = useState<Set<string>>(new Set())
 
-  // URL-based modal state
+  // URL-based bead selection state
   const beadIdParam = searchParams.get("bead")
   const [selectedBead, setSelectedBead] = useState<Bead | null>(null)
   const [isLoadingBead, setIsLoadingBead] = useState(false)
-  const modalOpen = !!selectedBead
 
   // Delete confirmation state
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
@@ -425,12 +424,10 @@ function BeadsEpicsViewer() {
     router.replace(`?${params.toString()}`, { scroll: false })
   }, [searchParams, router])
 
-  const handleModalOpenChange = useCallback((open: boolean) => {
-    if (!open) {
-      const params = new URLSearchParams(searchParams.toString())
-      params.delete("bead")
-      router.replace(`?${params.toString()}`, { scroll: false })
-    }
+  const handleCloseDetail = useCallback(() => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.delete("bead")
+    router.replace(`?${params.toString()}`, { scroll: false })
   }, [searchParams, router])
 
   const updateBeadInEpics = (beadId: string, updateFn: (bead: Bead) => Bead) => {
@@ -515,8 +512,8 @@ function BeadsEpicsViewer() {
   }
 
   const handleDelete = useCallback((beadId: string) => {
-    // Close the modal first
-    handleModalOpenChange(false)
+    // Close the detail panel first
+    handleCloseDetail()
     // Delete on server and reload
     startTransition(async () => {
       const result = await deleteBead(beadId, currentWorkspace?.databasePath)
@@ -528,7 +525,7 @@ function BeadsEpicsViewer() {
       }
       loadEpics()
     })
-  }, [handleModalOpenChange, currentWorkspace?.databasePath, loadEpics])
+  }, [handleCloseDetail, currentWorkspace?.databasePath, loadEpics])
 
   // Drag and drop handlers
   const handleDragStart = useCallback((beadId: string) => {
@@ -569,7 +566,7 @@ function BeadsEpicsViewer() {
   }, [epics])
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="h-screen flex flex-col bg-background">
       <Header
         workspaces={workspaces}
         currentWorkspace={currentWorkspace || { id: "", name: "Loading..." }}
@@ -580,15 +577,8 @@ function BeadsEpicsViewer() {
         isPending={isPending}
       />
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
-        <div className="mb-6">
-          <h1 className="text-2xl font-semibold text-foreground">Epics</h1>
-          <p className="text-muted-foreground mt-1">
-            Track progress across your project epics and their child beads
-          </p>
-        </div>
-
-        <div className="mb-6">
+      <main className="flex-1 flex flex-col px-6 py-4 min-h-0">
+        <div className="mb-4">
           <FilterBar
             filters={filters}
             onFiltersChange={setFilters}
@@ -598,47 +588,54 @@ function BeadsEpicsViewer() {
           />
         </div>
 
-        {isLoading && epics.length === 0 ? (
-          <div className="text-center py-12 text-muted-foreground">
-            Loading epics...
+        <div className="flex-1 flex gap-4 min-h-0">
+          {/* Epic Tree - Left Panel */}
+          <div className="flex-[11] overflow-y-auto">
+            {isLoading && epics.length === 0 ? (
+              <div className="text-center py-12 text-muted-foreground">
+                Loading epics...
+              </div>
+            ) : sortedEpics.length > 0 ? (
+              <EpicTree
+                epics={sortedEpics}
+                expandedEpics={expandedEpics}
+                onToggleEpic={handleToggleEpic}
+                onBeadClick={handleBeadClick}
+                onStatusChange={handleStatusChange}
+                onPriorityChange={handlePriorityChange}
+                onDelete={setDeleteConfirmId}
+                onBeadMove={handleBeadMove}
+                canMoveEpic={canMoveEpic}
+                dragOverEpicId={dragOverEpicId}
+                onDragOver={handleDragOver}
+                onDragStart={handleDragStart}
+                onDragEnd={handleDragEnd}
+                draggedBeadId={draggedBeadId}
+                expandedBeads={expandedBeads}
+                onToggleBead={handleToggleBead}
+              />
+            ) : (
+              <div className="text-center py-12 text-muted-foreground">
+                {epics.length === 0 ? "No epics found in this workspace" : "No epics or beads match your filters"}
+              </div>
+            )}
           </div>
-        ) : sortedEpics.length > 0 ? (
-          <EpicTree
-            epics={sortedEpics}
-            expandedEpics={expandedEpics}
-            onToggleEpic={handleToggleEpic}
-            onBeadClick={handleBeadClick}
-            onStatusChange={handleStatusChange}
-            onPriorityChange={handlePriorityChange}
-            onDelete={setDeleteConfirmId}
-            onBeadMove={handleBeadMove}
-            canMoveEpic={canMoveEpic}
-            dragOverEpicId={dragOverEpicId}
-            onDragOver={handleDragOver}
-            onDragStart={handleDragStart}
-            onDragEnd={handleDragEnd}
-            draggedBeadId={draggedBeadId}
-            expandedBeads={expandedBeads}
-            onToggleBead={handleToggleBead}
-          />
-        ) : (
-          <div className="text-center py-12 text-muted-foreground">
-            {epics.length === 0 ? "No epics found in this workspace" : "No epics or beads match your filters"}
-          </div>
-        )}
-      </main>
 
-      <BeadDetailModal
-        bead={selectedBead}
-        open={modalOpen}
-        onOpenChange={handleModalOpenChange}
-        onUpdate={handleBeadUpdate}
-        onAddComment={handleAddComment}
-        onDelete={handleDelete}
-        parentPath={parentPath}
-        dbPath={currentWorkspace?.databasePath}
-        assignees={assignees}
-      />
+          {/* Detail Panel - Right Panel */}
+          <div className="flex-[9] border-l border-border/40 pl-4 overflow-hidden">
+            <BeadDetailPanel
+              bead={selectedBead}
+              onClose={handleCloseDetail}
+              onUpdate={handleBeadUpdate}
+              onAddComment={handleAddComment}
+              onDelete={handleDelete}
+              parentPath={parentPath}
+              dbPath={currentWorkspace?.databasePath}
+              assignees={assignees}
+            />
+          </div>
+        </div>
+      </main>
 
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
         <AlertDialogContent>

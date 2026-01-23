@@ -25,7 +25,7 @@ export function Header({
 }: HeaderProps) {
   return (
     <header className="border-b border-border bg-card">
-      <div className="max-w-6xl mx-auto px-6 py-4 flex items-center justify-between">
+      <div className="px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1">
