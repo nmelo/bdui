@@ -16,6 +16,7 @@ import {
   Minus,
   ArrowDown,
   MessageSquare,
+  Trash2,
 } from "lucide-react"
 import {
   Table,
@@ -34,6 +35,7 @@ interface BeadTableProps {
   onBeadClick: (bead: Bead) => void
   onStatusChange: (beadId: string, status: BeadStatus) => void
   onPriorityChange: (beadId: string, priority: BeadPriority) => void
+  onDelete?: (beadId: string) => void
   epicId: string
   onDragStart?: (beadId: string) => void
   onDragEnd?: () => void
@@ -136,6 +138,7 @@ export function BeadTable({
   beads,
   onBeadClick,
   onStatusChange,
+  onDelete,
   epicId,
   onDragStart,
   onDragEnd,
@@ -151,6 +154,7 @@ export function BeadTable({
           <TableHead className="w-32 text-muted-foreground">Status</TableHead>
           <TableHead className="w-28 text-muted-foreground">Priority</TableHead>
           <TableHead className="w-32 text-muted-foreground">Assignee</TableHead>
+          {onDelete && <TableHead className="w-12 text-muted-foreground"></TableHead>}
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -202,6 +206,21 @@ export function BeadTable({
             <TableCell className="text-muted-foreground">
               {bead.assignee || <span className="text-muted-foreground/50 italic">Unassigned</span>}
             </TableCell>
+            {onDelete && (
+              <TableCell className="pr-4">
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onDelete(bead.id)
+                  }}
+                  className="p-1.5 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
+                  title="Delete bead"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              </TableCell>
+            )}
           </TableRow>
         ))}
       </TableBody>

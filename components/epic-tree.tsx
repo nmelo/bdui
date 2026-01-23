@@ -10,6 +10,7 @@ import {
   ArrowUp,
   Minus,
   ArrowDown,
+  Trash2,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { BeadTable } from "@/components/bead-table"
@@ -83,6 +84,7 @@ interface EpicTreeProps {
   onBeadClick: (bead: Bead) => void
   onStatusChange: (beadId: string, status: BeadStatus) => void
   onPriorityChange: (beadId: string, priority: BeadPriority) => void
+  onDelete?: (beadId: string) => void
   onBeadMove?: (beadId: string, targetEpicId: string) => void
   canMoveEpic?: (epicId: string, targetEpicId: string) => boolean
   dragOverEpicId?: string | null
@@ -142,6 +144,7 @@ export function EpicTree({
   onBeadClick,
   onStatusChange,
   onPriorityChange,
+  onDelete,
   onBeadMove,
   canMoveEpic,
   dragOverEpicId,
@@ -162,6 +165,7 @@ export function EpicTree({
           onBeadClick={onBeadClick}
           onStatusChange={onStatusChange}
           onPriorityChange={onPriorityChange}
+          onRequestDelete={onDelete}
           onBeadMove={onBeadMove}
           canMoveEpic={canMoveEpic}
           dragOverEpicId={dragOverEpicId}
@@ -213,6 +217,7 @@ interface EpicRowProps {
   onBeadClick: (bead: Bead) => void
   onStatusChange: (beadId: string, status: BeadStatus) => void
   onPriorityChange: (beadId: string, priority: BeadPriority) => void
+  onRequestDelete?: (beadId: string) => void
   onBeadMove?: (beadId: string, targetEpicId: string) => void
   canMoveEpic?: (epicId: string, targetEpicId: string) => boolean
   dragOverEpicId?: string | null
@@ -230,6 +235,7 @@ function EpicRow({
   onBeadClick,
   onStatusChange,
   onPriorityChange,
+  onRequestDelete,
   onBeadMove,
   canMoveEpic,
   dragOverEpicId,
@@ -245,6 +251,7 @@ function EpicRow({
   const hasChildEpics = epic.childEpics && epic.childEpics.length > 0
   const hasChildBeads = epic.children.length > 0
   const hasContent = hasChildEpics || hasChildBeads
+  const isEmpty = !hasContent
 
   // Calculate left margin based on depth (for nested epics)
   const depthMargin = depth * 12
@@ -333,6 +340,29 @@ function EpicRow({
           </>
         )}
 
+        {/* Delete button for empty epics */}
+        {onRequestDelete && isEmpty && !isStandalone && (
+          <div
+            role="button"
+            tabIndex={0}
+            onClick={(e) => {
+              e.stopPropagation()
+              onRequestDelete(epic.id)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter" || e.key === " ") {
+                e.stopPropagation()
+                e.preventDefault()
+                onRequestDelete(epic.id)
+              }
+            }}
+            className="p-1.5 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors cursor-pointer"
+            title="Delete empty epic"
+          >
+            <Trash2 className="h-4 w-4" />
+          </div>
+        )}
+
         {/* Enhanced Progress Bar */}
         <div className="flex items-center gap-3 shrink-0">
           <div className="w-36 group">
@@ -367,6 +397,7 @@ function EpicRow({
                   onBeadClick={onBeadClick}
                   onStatusChange={onStatusChange}
                   onPriorityChange={onPriorityChange}
+                  onRequestDelete={onRequestDelete}
                   onBeadMove={onBeadMove}
                   canMoveEpic={canMoveEpic}
                   dragOverEpicId={dragOverEpicId}
@@ -387,6 +418,7 @@ function EpicRow({
                 onBeadClick={onBeadClick}
                 onStatusChange={onStatusChange}
                 onPriorityChange={onPriorityChange}
+                onDelete={onRequestDelete}
                 epicId={epic.id}
                 onDragStart={onDragStart}
                 onDragEnd={onDragEnd}

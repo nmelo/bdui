@@ -13,6 +13,16 @@ import { useSSE } from "@/hooks/use-sse"
 import { getWorkspaceCookie, setWorkspaceCookie } from "@/lib/workspace-cookie"
 import type { Workspace, Epic, Bead, BeadStatus, BeadPriority, Comment } from "@/lib/types"
 import { toast } from "sonner"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 // Extract all unique assignees from epics recursively
 function extractAssignees(epics: Epic[]): string[] {
@@ -214,6 +224,9 @@ function BeadsEpicsViewer() {
   const [selectedBead, setSelectedBead] = useState<Bead | null>(null)
   const [isLoadingBead, setIsLoadingBead] = useState(false)
   const modalOpen = !!selectedBead
+
+  // Delete confirmation state
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   // Fetch full bead details (including comments) when modal opens
   useEffect(() => {
@@ -521,6 +534,7 @@ function BeadsEpicsViewer() {
             onBeadClick={handleBeadClick}
             onStatusChange={handleStatusChange}
             onPriorityChange={handlePriorityChange}
+            onDelete={setDeleteConfirmId}
             onBeadMove={handleBeadMove}
             canMoveEpic={canMoveEpic}
             dragOverEpicId={dragOverEpicId}
@@ -547,6 +561,31 @@ function BeadsEpicsViewer() {
         dbPath={currentWorkspace?.databasePath}
         assignees={assignees}
       />
+
+      <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this item?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. The item will be permanently deleted.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => {
+                if (deleteConfirmId) {
+                  handleDelete(deleteConfirmId)
+                  setDeleteConfirmId(null)
+                }
+              }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   )
 }
