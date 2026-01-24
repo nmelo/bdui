@@ -1,5 +1,6 @@
 "use client"
 
+import { useState } from "react"
 import {
   ChevronRight,
   ChevronDown,
@@ -11,6 +12,8 @@ import {
   Minus,
   ArrowDown,
   Trash2,
+  Archive,
+  Inbox,
 } from "lucide-react"
 import { Card } from "@/components/ui/card"
 import { BeadTable } from "@/components/bead-table"
@@ -86,6 +89,9 @@ function PillBadge({
 
 interface EpicTreeProps {
   epics: Epic[]
+  archivedEpics?: Epic[]
+  backlogEpics?: Epic[]
+  backlogBeads?: Bead[]
   expandedEpics: Set<string>
   onToggleEpic: (epicId: string) => void
   onBeadClick: (bead: Bead) => void
@@ -103,6 +109,8 @@ interface EpicTreeProps {
   onToggleBead?: (beadId: string) => void
   focusedItemId?: string | null
   onFocusItem?: (id: string | null) => void
+  onArchive?: (id: string, archived: boolean) => void
+  onBacklog?: (id: string, inBacklog: boolean) => void
 }
 
 // Depth-based left border colors
@@ -166,6 +174,9 @@ function getAggregatedCounts(epic: Epic): { closed: number; total: number } {
 
 export function EpicTree({
   epics,
+  archivedEpics = [],
+  backlogEpics = [],
+  backlogBeads = [],
   expandedEpics,
   onToggleEpic,
   onBeadClick,
@@ -183,9 +194,45 @@ export function EpicTree({
   onToggleBead,
   focusedItemId,
   onFocusItem,
+  onArchive,
+  onBacklog,
 }: EpicTreeProps) {
+  const [isDraggingToArchive, setIsDraggingToArchive] = useState(false)
+  const [isDraggingToUnarchive, setIsDraggingToUnarchive] = useState(false)
+  const [isDraggingToBacklog, setIsDraggingToBacklog] = useState(false)
+  const [isDraggingFromBacklog, setIsDraggingFromBacklog] = useState(false)
+
+  // Helper to check if an ID exists anywhere in a bead tree (including subtasks)
+  const isInBeadTree = (id: string, beads: Bead[]): boolean => {
+    for (const bead of beads) {
+      if (bead.id === id) return true
+      if (bead.children && isInBeadTree(id, bead.children)) return true
+    }
+    return false
+  }
+
+  // Helper to check if an ID exists anywhere in an epic tree
+  const isInEpicTree = (id: string, epicList: Epic[]): boolean => {
+    for (const epic of epicList) {
+      if (epic.id === id) return true
+      if (isInBeadTree(id, epic.children)) return true
+      if (epic.childEpics && isInEpicTree(id, epic.childEpics)) return true
+    }
+    return false
+  }
+
+  // Check if the dragged item is from backlog (including nested items)
+  const isBacklogItem = draggedBeadId && (
+    isInEpicTree(draggedBeadId, backlogEpics) ||
+    isInBeadTree(draggedBeadId, backlogBeads)
+  )
+
+  // Check if dragged item is from archive (including nested items)
+  const isArchivedItem = draggedBeadId && isInEpicTree(draggedBeadId, archivedEpics)
+
   return (
     <div className="space-y-3">
+      {/* Active epics */}
       {epics.map((epic, index) => (
         <EpicRow
           key={`${epic.id}-${index}`}
@@ -240,6 +287,233 @@ export function EpicTree({
           Drop here to make top-level epic
         </div>
       )}
+
+      {/* Backlog drop zone - hide when dragging from backlog or archive */}
+      {draggedBeadId && onBacklog && !isBacklogItem && !isArchivedItem && (
+        <div
+          className={cn(
+            "mt-4 border-2 border-dashed rounded-lg p-4 transition-colors",
+            isDraggingToBacklog ? "border-blue-500 bg-blue-500/10" : "border-muted-foreground/30"
+          )}
+          onDragOver={(e) => {
+            e.preventDefault()
+            e.dataTransfer.dropEffect = "move"
+            setIsDraggingToBacklog(true)
+          }}
+          onDragLeave={() => setIsDraggingToBacklog(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            try {
+              const data = JSON.parse(e.dataTransfer.getData("text/plain"))
+              if (data.beadId) {
+                onBacklog(data.beadId, true)
+              }
+            } catch {
+              // Invalid drag data
+            }
+            setIsDraggingToBacklog(false)
+          }}
+        >
+          <div className="flex items-center justify-center gap-2 text-muted-foreground">
+            <Inbox className="h-4 w-4" />
+            <span className="text-sm">Drop here to move to backlog</span>
+          </div>
+        </div>
+      )}
+
+      {/* Archive drop zone - hide when dragging from archive */}
+      {draggedBeadId && onArchive && !isArchivedItem && (
+        <div
+          className={cn(
+            "mt-4 border-2 border-dashed rounded-lg p-4 transition-colors",
+            isDraggingToArchive ? "border-amber-500 bg-amber-500/10" : "border-muted-foreground/30"
+          )}
+          onDragOver={(e) => {
+            e.preventDefault()
+            e.dataTransfer.dropEffect = "move"
+            setIsDraggingToArchive(true)
+          }}
+          onDragLeave={() => setIsDraggingToArchive(false)}
+          onDrop={(e) => {
+            e.preventDefault()
+            try {
+              const data = JSON.parse(e.dataTransfer.getData("text/plain"))
+              if (data.beadId) {
+                onArchive(data.beadId, true)
+              }
+            } catch {
+              // Invalid drag data
+            }
+            setIsDraggingToArchive(false)
+          }}
+        >
+          <div className="flex items-center justify-center gap-2 text-muted-foreground">
+            <Archive className="h-4 w-4" />
+            <span className="text-sm">Drop here to archive</span>
+          </div>
+        </div>
+      )}
+
+      {/* Backlog section */}
+      {(backlogEpics.length > 0 || backlogBeads.length > 0) && (
+        <div className="mt-8">
+          {/* Restore from backlog drop zone */}
+          {draggedBeadId && onBacklog && isBacklogItem && (
+            <div
+              className={cn(
+                "mb-4 border-2 border-dashed rounded-lg p-4 transition-colors",
+                isDraggingFromBacklog ? "border-emerald-500 bg-emerald-500/10" : "border-muted-foreground/30"
+              )}
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.dataTransfer.dropEffect = "move"
+                setIsDraggingFromBacklog(true)
+              }}
+              onDragLeave={() => setIsDraggingFromBacklog(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                try {
+                  const data = JSON.parse(e.dataTransfer.getData("text/plain"))
+                  if (data.beadId) {
+                    onBacklog(data.beadId, false)
+                  }
+                } catch {
+                  // Invalid drag data
+                }
+                setIsDraggingFromBacklog(false)
+              }}
+            >
+              <div className="flex items-center justify-center gap-2 text-emerald-500">
+                <Inbox className="h-4 w-4" />
+                <span className="text-sm font-medium">Drop here to restore from backlog</span>
+              </div>
+            </div>
+          )}
+
+          <div className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+            <Inbox className="h-4 w-4" />
+            Backlog ({backlogEpics.length + backlogBeads.length})
+          </div>
+          <div className="space-y-3 opacity-60">
+            {/* Backlog epics */}
+            {backlogEpics.map((epic, index) => (
+              <EpicRow
+                key={`backlog-${epic.id}-${index}`}
+                epic={epic}
+                depth={0}
+                expandedEpics={expandedEpics}
+                onToggle={onToggleEpic}
+                onBeadClick={onBeadClick}
+                onStatusChange={onStatusChange}
+                onPriorityChange={onPriorityChange}
+                onRequestDelete={onDelete}
+                onBeadMove={onBeadMove}
+                canMoveEpic={canMoveEpic}
+                dragOverEpicId={dragOverEpicId}
+                onDragOver={onDragOver}
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
+                draggedBeadId={draggedBeadId}
+                expandedBeads={expandedBeads}
+                onToggleBead={onToggleBead}
+                focusedItemId={focusedItemId}
+                onFocusItem={onFocusItem}
+                isBacklog
+              />
+            ))}
+            {/* Backlog loose beads */}
+            {backlogBeads.length > 0 && (
+              <Card className="overflow-hidden border-l-4 border-border/50 border-l-blue-400 bg-card shadow-lg !py-0 !gap-0">
+                <BeadTable
+                  beads={backlogBeads}
+                  onBeadClick={onBeadClick}
+                  onStatusChange={onStatusChange}
+                  onPriorityChange={onPriorityChange}
+                  onDelete={onDelete}
+                  epicId="_standalone"
+                  onDragStart={onDragStart}
+                  onDragEnd={onDragEnd}
+                  draggedBeadId={draggedBeadId}
+                  expandedBeads={expandedBeads}
+                  onToggleBead={onToggleBead}
+                  focusedItemId={focusedItemId}
+                  onFocusItem={onFocusItem}
+                />
+              </Card>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Archived epics section */}
+      {archivedEpics.length > 0 && (
+        <div className="mt-8">
+          {/* Restore from archive drop zone */}
+          {draggedBeadId && onArchive && isArchivedItem && (
+            <div
+              className={cn(
+                "mb-4 border-2 border-dashed rounded-lg p-4 transition-colors",
+                isDraggingToUnarchive ? "border-emerald-500 bg-emerald-500/10" : "border-muted-foreground/30"
+              )}
+              onDragOver={(e) => {
+                e.preventDefault()
+                e.dataTransfer.dropEffect = "move"
+                setIsDraggingToUnarchive(true)
+              }}
+              onDragLeave={() => setIsDraggingToUnarchive(false)}
+              onDrop={(e) => {
+                e.preventDefault()
+                try {
+                  const data = JSON.parse(e.dataTransfer.getData("text/plain"))
+                  if (data.beadId) {
+                    onArchive(data.beadId, false)
+                  }
+                } catch {
+                  // Invalid drag data
+                }
+                setIsDraggingToUnarchive(false)
+              }}
+            >
+              <div className="flex items-center justify-center gap-2 text-emerald-500">
+                <Archive className="h-4 w-4" />
+                <span className="text-sm font-medium">Drop here to restore from archive</span>
+              </div>
+            </div>
+          )}
+
+          <div className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
+            <Archive className="h-4 w-4" />
+            Archived ({archivedEpics.length})
+          </div>
+          <div className="space-y-3 opacity-50">
+            {archivedEpics.map((epic, index) => (
+              <EpicRow
+                key={`archived-${epic.id}-${index}`}
+                epic={epic}
+                depth={0}
+                expandedEpics={expandedEpics}
+                onToggle={onToggleEpic}
+                onBeadClick={onBeadClick}
+                onStatusChange={onStatusChange}
+                onPriorityChange={onPriorityChange}
+                onRequestDelete={onDelete}
+                onBeadMove={onBeadMove}
+                canMoveEpic={canMoveEpic}
+                dragOverEpicId={dragOverEpicId}
+                onDragOver={onDragOver}
+                onDragStart={onDragStart}
+                onDragEnd={onDragEnd}
+                draggedBeadId={draggedBeadId}
+                expandedBeads={expandedBeads}
+                onToggleBead={onToggleBead}
+                focusedItemId={focusedItemId}
+                onFocusItem={onFocusItem}
+                isArchived
+              />
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -264,6 +538,8 @@ interface EpicRowProps {
   onToggleBead?: (beadId: string) => void
   focusedItemId?: string | null
   onFocusItem?: (id: string | null) => void
+  isArchived?: boolean
+  isBacklog?: boolean
 }
 
 function EpicRow({
@@ -286,6 +562,8 @@ function EpicRow({
   onToggleBead,
   focusedItemId,
   onFocusItem,
+  isArchived = false,
+  isBacklog = false,
 }: EpicRowProps) {
   const isExpanded = expandedEpics.has(epic.id)
   const { closed: closedCount, total: totalCount } = getAggregatedCounts(epic)
@@ -302,6 +580,12 @@ function EpicRow({
   const borderColor = isStandalone ? "border-l-blue-400" : depthBorderColors[Math.min(depth, depthBorderColors.length - 1)]
   const { bg, shadow } = depthStyles[Math.min(depth, depthStyles.length - 1)]
 
+  // All epics are draggable (except the special _standalone pseudo-epic)
+  // - Nested epics can be moved to other parents
+  // - Top-level epics can be archived
+  // - Archived epics can be unarchived
+  const isDraggable = !isStandalone
+
   return (
     <Card
       data-item-id={epic.id}
@@ -314,17 +598,15 @@ function EpicRow({
       )}
       style={{ marginLeft: depthMargin }}
     >
-      <button
-        type="button"
-        draggable={depth > 0}
+      <div
+        draggable={isDraggable}
         className={cn(
-          "w-full px-4 py-4 flex items-center gap-3 hover:bg-white/5 transition-colors text-left",
+          "w-full px-4 py-4 flex items-center gap-3 hover:bg-white/5 transition-colors",
           dragOverEpicId === epic.id && "ring-2 ring-emerald-500 ring-inset bg-emerald-500/10",
           draggedBeadId === epic.id && "opacity-50"
         )}
-        onClick={() => onToggle(epic.id)}
         onDragStart={(e) => {
-          if (depth > 0) {
+          if (isDraggable) {
             e.dataTransfer.setData("text/plain", JSON.stringify({ beadId: epic.id, sourceEpicId: epic.parentId, type: "epic" }))
             e.dataTransfer.effectAllowed = "move"
             onDragStart?.(epic.id)
@@ -337,7 +619,7 @@ function EpicRow({
           onDragOver?.(epic.id)
         }}
         onDragLeave={(e) => {
-          // Only clear if leaving the button entirely (not entering a child)
+          // Only clear if leaving the container entirely (not entering a child)
           if (!e.currentTarget.contains(e.relatedTarget as Node)) {
             onDragOver?.(null)
           }
@@ -360,7 +642,15 @@ function EpicRow({
           onDragOver?.(null)
         }}
       >
-        <div className="text-muted-foreground">
+        {/* Chevron button - expand/collapse only */}
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation()
+            onToggle(epic.id)
+          }}
+          className="text-muted-foreground hover:text-foreground transition-colors"
+        >
           {hasContent ? (
             isExpanded ? (
               <ChevronDown className="h-5 w-5" />
@@ -370,13 +660,22 @@ function EpicRow({
           ) : (
             <div className="w-5" />
           )}
+        </button>
+
+        {/* Clickable row area for viewing epic details */}
+        <div
+          className={cn(
+            "flex-1 flex items-center gap-3 min-w-0",
+            !isStandalone && "cursor-pointer"
+          )}
+          onClick={() => !isStandalone && onBeadClick(epic)}
+        >
+          {!isStandalone && <CopyableId id={epic.id} className="w-28 shrink-0" />}
+
+          <span className="font-medium text-foreground flex-1 truncate">
+            {epic.title}
+          </span>
         </div>
-
-        {!isStandalone && <CopyableId id={epic.id} className="w-28 shrink-0" />}
-
-        <span className="font-medium text-foreground flex-1 truncate">
-          {epic.title}
-        </span>
 
         {!isStandalone && (
           <>
@@ -452,7 +751,7 @@ function EpicRow({
             {closedCount}/{totalCount} ({Math.round(progress)}%)
           </span>
         </div>
-      </button>
+      </div>
 
       {isExpanded && hasContent && (
         <div className="border-t border-border/30">
