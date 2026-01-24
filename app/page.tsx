@@ -11,6 +11,8 @@ import { getWorkspaces } from "@/actions/workspaces"
 import { updateBeadStatus, updateBeadPriority, updateBeadParent, addComment as addCommentAction, deleteBead } from "@/actions/beads"
 import { useWebSocket } from "@/hooks/use-websocket"
 import { getWorkspaceCookie, setWorkspaceCookie } from "@/lib/workspace-cookie"
+import { getSortPreference, setSortPreference, getFiltersPreference, setFiltersPreference } from "@/lib/local-storage"
+import { ResizablePanelGroup, ResizablePanel, ResizableHandle } from "@/components/ui/resizable"
 import type { Workspace, Epic, Bead, BeadStatus, BeadPriority, Comment } from "@/lib/types"
 import { toast } from "sonner"
 import {
@@ -141,25 +143,42 @@ function filterEpics(epics: Epic[], filters: Filters): Epic[] {
 const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
 const statusOrder: Record<string, number> = { open: 0, in_progress: 1, closed: 2 }
 
+function compareBead(a: Bead, b: Bead, sort: SortOption): number {
+  let cmp = 0
+  switch (sort.field) {
+    case "title":
+      cmp = a.title.localeCompare(b.title)
+      break
+    case "priority":
+      cmp = (priorityOrder[a.priority] ?? 99) - (priorityOrder[b.priority] ?? 99)
+      break
+    case "status":
+      cmp = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99)
+      break
+    case "updated":
+      cmp = (a.updatedAt?.getTime() ?? 0) - (b.updatedAt?.getTime() ?? 0)
+      break
+  }
+  return sort.direction === "asc" ? cmp : -cmp
+}
+
+function sortBeads(beads: Bead[], sort: SortOption): Bead[] {
+  return [...beads]
+    .map((bead) => ({
+      ...bead,
+      children: bead.children ? sortBeads(bead.children, sort) : undefined,
+    }))
+    .sort((a, b) => compareBead(a, b, sort))
+}
+
 function sortEpics(epics: Epic[], sort: SortOption): Epic[] {
-  return [...epics].sort((a, b) => {
-    let cmp = 0
-    switch (sort.field) {
-      case "title":
-        cmp = a.title.localeCompare(b.title)
-        break
-      case "priority":
-        cmp = (priorityOrder[a.priority] ?? 99) - (priorityOrder[b.priority] ?? 99)
-        break
-      case "status":
-        cmp = (statusOrder[a.status] ?? 99) - (statusOrder[b.status] ?? 99)
-        break
-      case "updated":
-        cmp = (a.updatedAt?.getTime() ?? 0) - (b.updatedAt?.getTime() ?? 0)
-        break
-    }
-    return sort.direction === "asc" ? cmp : -cmp
-  })
+  return [...epics]
+    .map((epic) => ({
+      ...epic,
+      children: sortBeads(epic.children, sort),
+      childEpics: epic.childEpics ? sortEpics(epic.childEpics, sort) : undefined,
+    }))
+    .sort((a, b) => compareBead(a, b, sort))
 }
 
 // Build parent path for a bead
@@ -233,14 +252,36 @@ function BeadsEpicsViewer() {
   const [isLoading, setIsLoading] = useState(true)
   const [loadingWorkspaceId, setLoadingWorkspaceId] = useState<string | null>(null)
   const [isPending, startTransition] = useTransition()
-  const [filters, setFilters] = useState<Filters>({
+  const [filters, setFiltersState] = useState<Filters>({
     status: "all",
     assignee: "all",
     priority: "all",
     showMessages: false,
     search: "",
   })
-  const [sort, setSort] = useState<SortOption>({ field: "updated", direction: "desc" })
+
+  // Load filters preference from localStorage on mount
+  useEffect(() => {
+    setFiltersState(getFiltersPreference())
+  }, [])
+
+  // Wrap setFilters to persist to localStorage
+  const setFilters = useCallback((newFilters: Filters) => {
+    setFiltersState(newFilters)
+    setFiltersPreference(newFilters)
+  }, [])
+  const [sort, setSortState] = useState<SortOption>({ field: "updated", direction: "desc" })
+
+  // Load sort preference from localStorage on mount
+  useEffect(() => {
+    setSortState(getSortPreference())
+  }, [])
+
+  // Wrap setSort to persist to localStorage
+  const setSort = useCallback((newSort: SortOption) => {
+    setSortState(newSort)
+    setSortPreference(newSort)
+  }, [])
 
   // Drag and drop state
   const [draggedBeadId, setDraggedBeadId] = useState<string | null>(null)
@@ -715,56 +756,66 @@ function BeadsEpicsViewer() {
           />
         </div>
 
-        <div className="flex-1 flex gap-4 min-h-0">
+        <ResizablePanelGroup
+          direction="horizontal"
+          className="flex-1 min-h-0"
+          autoSaveId="beads-panel-layout"
+        >
           {/* Epic Tree - Left Panel */}
-          <div ref={treeContainerRef} className="flex-[11] overflow-y-auto">
-            {isLoading && epics.length === 0 ? (
-              <div className="text-center py-12 text-muted-foreground">
-                Loading epics...
-              </div>
-            ) : sortedEpics.length > 0 ? (
-              <EpicTree
-                epics={sortedEpics}
-                expandedEpics={expandedEpics}
-                onToggleEpic={handleToggleEpic}
-                onBeadClick={handleBeadClick}
-                onStatusChange={handleStatusChange}
-                onPriorityChange={handlePriorityChange}
-                onDelete={setDeleteConfirmId}
-                onBeadMove={handleBeadMove}
-                canMoveEpic={canMoveEpic}
-                dragOverEpicId={dragOverEpicId}
-                onDragOver={handleDragOver}
-                onDragStart={handleDragStart}
-                onDragEnd={handleDragEnd}
-                draggedBeadId={draggedBeadId}
-                expandedBeads={expandedBeads}
-                onToggleBead={handleToggleBead}
-                focusedItemId={focusedItemId}
-                onFocusItem={setFocusedItemId}
-              />
-            ) : (
-              <div className="text-center py-12 text-muted-foreground">
-                {epics.length === 0 ? "No epics found in this workspace" : "No epics or beads match your filters"}
-              </div>
-            )}
-          </div>
+          <ResizablePanel defaultSize={55} minSize={30}>
+            <div ref={treeContainerRef} className="h-full overflow-y-auto pr-4">
+              {isLoading && epics.length === 0 ? (
+                <div className="text-center py-12 text-muted-foreground">
+                  Loading epics...
+                </div>
+              ) : sortedEpics.length > 0 ? (
+                <EpicTree
+                  epics={sortedEpics}
+                  expandedEpics={expandedEpics}
+                  onToggleEpic={handleToggleEpic}
+                  onBeadClick={handleBeadClick}
+                  onStatusChange={handleStatusChange}
+                  onPriorityChange={handlePriorityChange}
+                  onDelete={setDeleteConfirmId}
+                  onBeadMove={handleBeadMove}
+                  canMoveEpic={canMoveEpic}
+                  dragOverEpicId={dragOverEpicId}
+                  onDragOver={handleDragOver}
+                  onDragStart={handleDragStart}
+                  onDragEnd={handleDragEnd}
+                  draggedBeadId={draggedBeadId}
+                  expandedBeads={expandedBeads}
+                  onToggleBead={handleToggleBead}
+                  focusedItemId={focusedItemId}
+                  onFocusItem={setFocusedItemId}
+                />
+              ) : (
+                <div className="text-center py-12 text-muted-foreground">
+                  {epics.length === 0 ? "No epics found in this workspace" : "No epics or beads match your filters"}
+                </div>
+              )}
+            </div>
+          </ResizablePanel>
+
+          <ResizableHandle withHandle />
 
           {/* Detail Panel - Right Panel */}
-          <div className="flex-[9] border-l border-border/40 pl-4 overflow-hidden">
-            <BeadDetailPanel
-              bead={selectedBead}
-              onClose={handleCloseDetail}
-              onUpdate={handleBeadUpdate}
-              onAddComment={handleAddComment}
-              onDelete={handleDelete}
-              onBeadNavigate={handleBeadNavigate}
-              parentPath={parentPath}
-              dbPath={currentWorkspace?.databasePath}
-              assignees={assignees}
-            />
-          </div>
-        </div>
+          <ResizablePanel defaultSize={45} minSize={20}>
+            <div className="h-full overflow-hidden pl-4">
+              <BeadDetailPanel
+                bead={selectedBead}
+                onClose={handleCloseDetail}
+                onUpdate={handleBeadUpdate}
+                onAddComment={handleAddComment}
+                onDelete={handleDelete}
+                onBeadNavigate={handleBeadNavigate}
+                parentPath={parentPath}
+                dbPath={currentWorkspace?.databasePath}
+                assignees={assignees}
+              />
+            </div>
+          </ResizablePanel>
+        </ResizablePanelGroup>
       </main>
 
       <AlertDialog open={!!deleteConfirmId} onOpenChange={(open) => !open && setDeleteConfirmId(null)}>
