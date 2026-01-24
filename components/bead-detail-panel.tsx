@@ -50,6 +50,7 @@ interface BeadDetailPanelProps {
   onUpdate: (bead: Bead) => void
   onAddComment: (beadId: string, comment: Comment) => void
   onDelete?: (beadId: string) => void
+  onBeadNavigate?: (beadId: string) => void
   parentPath?: { id: string; title: string }[]
   dbPath?: string
   assignees?: string[]
@@ -86,6 +87,7 @@ export function BeadDetailPanel({
   onUpdate,
   onAddComment,
   onDelete,
+  onBeadNavigate,
   parentPath = [],
   dbPath,
   assignees = [],
@@ -309,6 +311,27 @@ export function BeadDetailPanel({
       hour: "numeric",
       minute: "2-digit",
     })
+  }
+
+  const formatRelativeTime = (date: Date) => {
+    const now = new Date()
+    const d = new Date(date)
+    const diffMs = now.getTime() - d.getTime()
+    const diffSec = Math.floor(diffMs / 1000)
+    const diffMin = Math.floor(diffSec / 60)
+    const diffHour = Math.floor(diffMin / 60)
+    const diffDay = Math.floor(diffHour / 24)
+    const diffWeek = Math.floor(diffDay / 7)
+    const diffMonth = Math.floor(diffDay / 30)
+    const diffYear = Math.floor(diffDay / 365)
+
+    if (diffSec < 60) return "just now"
+    if (diffMin < 60) return `${diffMin}m ago`
+    if (diffHour < 24) return `${diffHour}h ago`
+    if (diffDay < 7) return `${diffDay}d ago`
+    if (diffWeek < 4) return `${diffWeek}w ago`
+    if (diffMonth < 12) return `${diffMonth}mo ago`
+    return `${diffYear}y ago`
   }
 
   // Empty state when no bead selected
@@ -598,54 +621,90 @@ export function BeadDetailPanel({
             </div>
           )}
 
-          {/* Activity/Comments section */}
-          <div className="mt-6 -mx-4 pl-8 pr-6 py-5 bg-muted/10 border-y border-border/20">
-            <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-3">
-              Activity {bead.comments.length > 0 && `(${bead.comments.length})`}
-            </h3>
+          {/* Dependencies */}
+          {(bead.blockedBy?.length || bead.blocks?.length) ? (
+            <div className="pt-4 border-t border-border/30 space-y-2">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Dependencies</h3>
+              {bead.blockedBy && bead.blockedBy.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground">Blocked by:</span>
+                  {bead.blockedBy.map(dep => (
+                    <button
+                      key={dep.id}
+                      onClick={() => onBeadNavigate?.(dep.id)}
+                      className="text-xs px-2 py-0.5 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                      title={dep.title}
+                    >
+                      {dep.id}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {bead.blocks && bead.blocks.length > 0 && (
+                <div className="flex flex-wrap items-center gap-1.5">
+                  <span className="text-xs text-muted-foreground">Blocks:</span>
+                  {bead.blocks.map(dep => (
+                    <button
+                      key={dep.id}
+                      onClick={() => onBeadNavigate?.(dep.id)}
+                      className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors"
+                      title={dep.title}
+                    >
+                      {dep.id}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          ) : null}
 
-            {bead.comments.length > 0 && (
-              <div className="space-y-3 mb-4">
+          {/* Comments */}
+          {bead.comments.length > 0 && (
+            <TooltipProvider>
+              <div className="mt-6 space-y-4">
                 {bead.comments.map((comment) => (
-                  <div key={comment.id} className="flex gap-2.5">
-                    <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-medium bg-primary/20 text-primary">
-                      {comment.author.charAt(0).toUpperCase()}
+                  <div key={comment.id} className="rounded-xl bg-card shadow-md shadow-black/20 overflow-hidden">
+                    <div className="flex items-center gap-3 px-4 py-2.5 bg-muted/30 border-b border-border/20">
+                      <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-semibold bg-primary/20 text-primary">
+                        {comment.author.charAt(0).toUpperCase()}
+                      </div>
+                      <span className="font-medium text-sm text-foreground">{comment.author}</span>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="text-xs text-muted-foreground/60 cursor-default ml-auto">{formatRelativeTime(comment.timestamp)}</span>
+                        </TooltipTrigger>
+                        <TooltipContent>{formatDateTime(comment.timestamp)}</TooltipContent>
+                      </Tooltip>
                     </div>
-                    <div className="flex-1 min-w-0 pt-0.5">
-                      <div className="flex items-baseline gap-2 flex-wrap">
-                        <span className="font-medium text-xs text-foreground">{comment.author}</span>
-                        <span className="text-xs text-muted-foreground/70">{formatDateTime(comment.timestamp)}</span>
-                      </div>
-                      <div className="text-sm text-muted-foreground mt-0.5">
-                        <SimpleMarkdown content={comment.content} />
-                      </div>
+                    <div className="px-4 py-3 text-sm text-foreground/90">
+                      <SimpleMarkdown content={comment.content} />
                     </div>
                   </div>
                 ))}
               </div>
-            )}
+            </TooltipProvider>
+          )}
 
-            {/* New comment input */}
-            <div className="flex gap-2.5">
-              <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-medium bg-muted/50 text-muted-foreground">
-                U
-              </div>
-              <div className="flex-1">
-                <Textarea
-                  value={newComment}
-                  onChange={(e) => setNewComment(e.target.value)}
-                  placeholder="Write a comment..."
-                  rows={2}
-                  className="min-h-0 bg-transparent border-border/40 text-foreground text-sm resize-none focus:border-primary py-2"
-                />
-                {newComment.trim() && (
-                  <div className="flex justify-end mt-2">
-                    <Button onClick={handleAddComment} size="sm" className="h-7 text-xs">
-                      Comment
-                    </Button>
-                  </div>
-                )}
-              </div>
+          {/* New comment input */}
+          <div className="mt-6 flex gap-2.5">
+            <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-medium bg-muted/50 text-muted-foreground">
+              U
+            </div>
+            <div className="flex-1">
+              <Textarea
+                value={newComment}
+                onChange={(e) => setNewComment(e.target.value)}
+                placeholder="Write a comment..."
+                rows={2}
+                className="min-h-0 bg-transparent border-border/40 text-foreground text-sm resize-none focus:border-primary py-2"
+              />
+              {newComment.trim() && (
+                <div className="flex justify-end mt-2">
+                  <Button onClick={handleAddComment} size="sm" className="h-7 text-xs">
+                    Comment
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -5,6 +5,8 @@ import {
   showBead,
   showBeads,
   getComments,
+  listDependencies,
+  listDependents,
   mapPriority,
   mapType,
   type BdBead,
@@ -25,7 +27,7 @@ function convertComment(bdComment: BdComment): Comment {
     id: bdComment.id,
     author: bdComment.author,
     content: bdComment.text,
-    timestamp: new Date(bdComment.created_at * 1000),
+    timestamp: new Date(bdComment.created_at),
   }
 }
 
@@ -190,9 +192,28 @@ export async function getBeadDetail(id: string, dbPath?: string): Promise<Bead |
   const options: BdOptions = dbPath ? { db: dbPath } : {}
 
   try {
-    const bdBead = await showBead(id, options)
-    const comments = await getComments(id, options).catch(() => [])
-    return convertBead(bdBead, comments.map(convertComment))
+    const [bdBead, comments, deps, dependents] = await Promise.all([
+      showBead(id, options),
+      getComments(id, options).catch(() => []),
+      listDependencies(id, options).catch(() => []),
+      listDependents(id, options).catch(() => []),
+    ])
+
+    const bead = convertBead(bdBead, comments.map(convertComment))
+
+    // Add blocking dependencies
+    const blockedBy = deps
+      .filter(d => d.dependency_type === "blocks")
+      .map(d => ({ id: d.id, title: d.title }))
+    const blocks = dependents
+      .filter(d => d.dependency_type === "blocks")
+      .map(d => ({ id: d.id, title: d.title }))
+
+    return {
+      ...bead,
+      blockedBy: blockedBy.length > 0 ? blockedBy : undefined,
+      blocks: blocks.length > 0 ? blocks : undefined,
+    }
   } catch {
     return null
   }

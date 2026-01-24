@@ -9,6 +9,11 @@ export interface Comment {
   timestamp: Date
 }
 
+export interface BeadDependency {
+  id: string
+  title: string
+}
+
 export interface Bead {
   id: string
   type: BeadType
@@ -24,6 +29,8 @@ export interface Bead {
   createdAt?: Date
   updatedAt?: Date
   children?: Bead[]  // Subtasks (nested parent-child relationships)
+  blockedBy?: BeadDependency[]  // Beads that must complete before this one
+  blocks?: BeadDependency[]     // Beads waiting on this one to complete
 }
 
 export interface Epic extends Bead {

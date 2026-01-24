@@ -36,7 +36,7 @@ export interface BdComment {
   id: string
   author: string
   text: string
-  created_at: number
+  created_at: string  // ISO date string
 }
 
 export interface BdEpicStatus {
@@ -268,4 +268,22 @@ export function mapType(type?: string): "bug" | "task" | "feature" | "epic" | "c
     default:
       return "task"
   }
+}
+
+// Dependency types returned by bd dep list
+export interface BdDependency {
+  id: string
+  title: string
+  status: string
+  dependency_type: "blocks" | "parent-child" | "related"
+}
+
+// List dependencies for a bead (beads that this bead depends on)
+export async function listDependencies(id: string, options: BdOptions = {}): Promise<BdDependency[]> {
+  return bdExec<BdDependency[]>(["dep", "list", id], options)
+}
+
+// List dependents for a bead (beads that depend on this bead)
+export async function listDependents(id: string, options: BdOptions = {}): Promise<BdDependency[]> {
+  return bdExec<BdDependency[]>(["dep", "list", id, "--direction=up"], options)
 }

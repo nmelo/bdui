@@ -457,6 +457,12 @@ function BeadsEpicsViewer() {
     router.replace(`?${params.toString()}`, { scroll: false })
   }, [searchParams, router])
 
+  const handleBeadNavigate = useCallback((beadId: string) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("bead", beadId)
+    router.replace(`?${params.toString()}`, { scroll: false })
+  }, [searchParams, router])
+
   const handleCloseDetail = useCallback(() => {
     const params = new URLSearchParams(searchParams.toString())
     params.delete("bead")
@@ -752,6 +758,7 @@ function BeadsEpicsViewer() {
               onUpdate={handleBeadUpdate}
               onAddComment={handleAddComment}
               onDelete={handleDelete}
+              onBeadNavigate={handleBeadNavigate}
               parentPath={parentPath}
               dbPath={currentWorkspace?.databasePath}
               assignees={assignees}
