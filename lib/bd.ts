@@ -1,11 +1,45 @@
 import { execFile } from "child_process"
 import { promisify } from "util"
+import { existsSync } from "fs"
+import { homedir } from "os"
+import { join } from "path"
 
 const execFileAsync = promisify(execFile)
 
-// Get bd binary path from BD_PATH env var, or default to "bd"
+// Common paths where bd might be installed
+const COMMON_BD_PATHS = [
+  "/opt/homebrew/bin/bd",           // Homebrew on Apple Silicon
+  "/usr/local/bin/bd",              // Homebrew on Intel / manual install
+  join(homedir(), "go/bin/bd"),     // Go install
+  join(homedir(), ".local/bin/bd"), // User local bin
+  "/usr/bin/bd",                    // System install
+]
+
+// Cache the resolved bd path
+let resolvedBdPath: string | null = null
+
+// Get bd binary path - checks BD_PATH env, then common locations, then falls back to "bd"
 function getBdPath(): string {
-  return process.env.BD_PATH || "bd"
+  // Use cached path if available
+  if (resolvedBdPath) return resolvedBdPath
+
+  // Check BD_PATH environment variable first
+  if (process.env.BD_PATH) {
+    resolvedBdPath = process.env.BD_PATH
+    return resolvedBdPath
+  }
+
+  // Search common paths
+  for (const path of COMMON_BD_PATHS) {
+    if (existsSync(path)) {
+      resolvedBdPath = path
+      return resolvedBdPath
+    }
+  }
+
+  // Fall back to "bd" and hope it's in PATH
+  resolvedBdPath = "bd"
+  return resolvedBdPath
 }
 
 export interface BdOptions {
