@@ -3,6 +3,11 @@ import { promisify } from "util"
 
 const execFileAsync = promisify(execFile)
 
+// Get bd binary path from BD_PATH env var, or default to "bd"
+function getBdPath(): string {
+  return process.env.BD_PATH || "bd"
+}
+
 export interface BdOptions {
   db?: string // Path to database file
   cwd?: string // Working directory
@@ -73,7 +78,7 @@ async function bdExec<T>(args: string[], options: BdOptions = {}): Promise<T> {
   const execArgs = buildArgs(args, options, true)
 
   try {
-    const { stdout, stderr } = await execFileAsync("bd", execArgs, {
+    const { stdout, stderr } = await execFileAsync(getBdPath(), execArgs, {
       cwd: options.cwd,
       maxBuffer: 10 * 1024 * 1024, // 10MB buffer
     })
@@ -102,7 +107,7 @@ async function bdExec<T>(args: string[], options: BdOptions = {}): Promise<T> {
 async function bdExecRaw(args: string[], options: BdOptions = {}): Promise<string> {
   const execArgs = buildArgs(args, options, false)
 
-  const { stdout } = await execFileAsync("bd", execArgs, {
+  const { stdout } = await execFileAsync(getBdPath(), execArgs, {
     cwd: options.cwd,
     maxBuffer: 10 * 1024 * 1024,
   })
