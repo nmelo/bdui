@@ -54,6 +54,28 @@ interface BeadDetailPanelProps {
   parentPath?: { id: string; title: string }[]
   dbPath?: string
   assignees?: string[]
+  availableStatuses?: string[]
+}
+
+// Core status configurations for styling
+const coreStatusConfig: Record<string, { label: string; colorClass: string; dotClass: string }> = {
+  open: { label: "Open", colorClass: "text-emerald-400", dotClass: "bg-emerald-500" },
+  in_progress: { label: "In Progress", colorClass: "text-blue-400", dotClass: "bg-blue-500" },
+  closed: { label: "Closed", colorClass: "text-slate-400", dotClass: "bg-slate-500" },
+  ready_for_qa: { label: "Ready for QA", colorClass: "text-purple-400", dotClass: "bg-purple-500" },
+}
+
+// Get status display config with fallback for unknown custom statuses
+function getStatusDisplayConfig(status: string): { label: string; colorClass: string; dotClass: string } {
+  if (coreStatusConfig[status]) {
+    return coreStatusConfig[status]
+  }
+  // Fallback for unknown custom statuses
+  return {
+    label: status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+    colorClass: "text-cyan-400",
+    dotClass: "bg-cyan-500",
+  }
 }
 
 type FieldName = 'title' | 'type' | 'status' | 'priority' | 'assignee'
@@ -91,6 +113,7 @@ export function BeadDetailPanel({
   parentPath = [],
   dbPath,
   assignees = [],
+  availableStatuses = ["open", "in_progress", "closed"],
 }: BeadDetailPanelProps) {
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
@@ -452,18 +475,24 @@ export function BeadDetailPanel({
                     disabled={fieldStates.status.isSaving}
                     className={cn(
                       "w-full h-8 px-2 rounded border-border/40 text-xs font-medium bg-transparent",
-                      status === "open" && "text-emerald-400",
-                      status === "in_progress" && "text-blue-400",
-                      status === "closed" && "text-slate-400",
+                      getStatusDisplayConfig(status).colorClass,
                       fieldStates.status.hasError && "ring-1 ring-destructive"
                     )}
                   >
                     {fieldStates.status.isSaving ? <Spinner className="h-3 w-3" /> : <SelectValue />}
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="open"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-emerald-500" />Open</span></SelectItem>
-                    <SelectItem value="in_progress"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-blue-500" />In Progress</span></SelectItem>
-                    <SelectItem value="closed"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-slate-500" />Closed</span></SelectItem>
+                    {availableStatuses.map((s) => {
+                      const config = getStatusDisplayConfig(s)
+                      return (
+                        <SelectItem key={s} value={s}>
+                          <span className="flex items-center gap-1.5">
+                            <span className={cn("w-1.5 h-1.5 rounded-full", config.dotClass)} />
+                            {config.label}
+                          </span>
+                        </SelectItem>
+                      )
+                    })}
                   </SelectContent>
                 </Select>
               </div>

@@ -142,21 +142,7 @@ function BeadRow({
           {bead.title}
         </TableCell>
         <TableCell>
-          <button
-            type="button"
-            onClick={(e) => {
-              e.stopPropagation()
-              const nextStatus: Record<BeadStatus, BeadStatus> = {
-                open: "in_progress",
-                in_progress: "closed",
-                closed: "open",
-              }
-              onStatusChange(bead.id, nextStatus[bead.status])
-            }}
-            className="hover:opacity-80 transition-opacity"
-          >
-            <PillBadge config={statusConfig[bead.status]} />
-          </button>
+          <PillBadge config={getStatusConfig(bead.status)} />
         </TableCell>
         <TableCell>
           <PillBadge config={priorityConfig[bead.priority]} />
@@ -241,7 +227,8 @@ const typeConfig: Record<BeadType, { label: string; className: string; icon: Rea
   },
 }
 
-const statusConfig: Record<BeadStatus, { label: string; className: string; icon: React.ReactNode }> = {
+// Core status configurations
+const coreStatusConfig: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
   open: {
     label: "Open",
     className: "bg-slate-500/20 text-slate-300 border-slate-500/40",
@@ -257,6 +244,25 @@ const statusConfig: Record<BeadStatus, { label: string; className: string; icon:
     className: "bg-emerald-500/20 text-emerald-400 border-emerald-500/40",
     icon: <CheckCircle2 className="h-3 w-3" />,
   },
+  // Well-known custom statuses
+  ready_for_qa: {
+    label: "Ready for QA",
+    className: "bg-purple-500/20 text-purple-400 border-purple-500/40",
+    icon: <CircleDot className="h-3 w-3" />,
+  },
+}
+
+// Get status config with fallback for unknown custom statuses
+function getStatusConfig(status: string): { label: string; className: string; icon: React.ReactNode } {
+  if (coreStatusConfig[status]) {
+    return coreStatusConfig[status]
+  }
+  // Fallback for unknown custom statuses
+  return {
+    label: status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+    className: "bg-blue-500/20 text-blue-400 border-blue-500/40",
+    icon: <Circle className="h-3 w-3" />,
+  }
 }
 
 const priorityConfig: Record<BeadPriority, { label: string; className: string; icon: React.ReactNode }> = {

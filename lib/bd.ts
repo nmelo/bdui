@@ -146,10 +146,24 @@ export async function addComment(id: string, text: string, options: BdOptions = 
 // Update bead status
 export async function updateStatus(
   id: string,
-  status: "open" | "in_progress" | "closed",
+  status: string,
   options: BdOptions = {}
 ): Promise<void> {
   await bdExecRaw(["update", id, "--status", status], options)
+}
+
+// Get custom statuses from bd config
+export async function getCustomStatuses(options: BdOptions = {}): Promise<string[]> {
+  try {
+    const result = await bdExecRaw(["config", "get", "status.custom"], options)
+    // Result may be a comma-separated list or single status
+    const trimmed = result.trim()
+    if (!trimmed) return []
+    return trimmed.split(",").map(s => s.trim()).filter(Boolean)
+  } catch {
+    // Config key doesn't exist or other error
+    return []
+  }
 }
 
 // Update bead priority (0=critical, 1=high, 2=medium, 3=low, 4=none)
@@ -286,4 +300,14 @@ export async function listDependencies(id: string, options: BdOptions = {}): Pro
 // List dependents for a bead (beads that depend on this bead)
 export async function listDependents(id: string, options: BdOptions = {}): Promise<BdDependency[]> {
   return bdExec<BdDependency[]>(["dep", "list", id, "--direction=up"], options)
+}
+
+// Add a label to a bead
+export async function addLabel(id: string, label: string, options: BdOptions = {}): Promise<void> {
+  await bdExecRaw(["update", id, "--add-label", label], options)
+}
+
+// Remove a label from a bead
+export async function removeLabel(id: string, label: string, options: BdOptions = {}): Promise<void> {
+  await bdExecRaw(["update", id, "--remove-label", label], options)
 }

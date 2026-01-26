@@ -11,15 +11,18 @@ import {
   closeBead as bdCloseBead,
   deleteBead as bdDeleteBead,
   addComment as bdAddComment,
+  addLabel as bdAddLabel,
+  removeLabel as bdRemoveLabel,
+  getCustomStatuses as bdGetCustomStatuses,
   unmapPriority,
   type BdOptions,
 } from "@/lib/bd"
-import type { BeadStatus, BeadPriority, BeadType } from "@/lib/types"
+import type { BeadPriority, BeadType } from "@/lib/types"
 
 // Update bead status
 export async function updateBeadStatus(
   id: string,
-  status: BeadStatus,
+  status: string,
   dbPath?: string
 ): Promise<{ success: boolean; error?: string }> {
   const options: BdOptions = dbPath ? { db: dbPath } : {}
@@ -30,6 +33,19 @@ export async function updateBeadStatus(
   } catch (error) {
     console.error("Failed to update status:", error)
     return { success: false, error: String(error) }
+  }
+}
+
+// Get all available statuses (core + custom)
+export async function getAvailableStatuses(dbPath?: string): Promise<string[]> {
+  const options: BdOptions = dbPath ? { db: dbPath } : {}
+  const coreStatuses = ["open", "in_progress", "closed"]
+
+  try {
+    const customStatuses = await bdGetCustomStatuses(options)
+    return [...coreStatuses, ...customStatuses]
+  } catch {
+    return coreStatuses
   }
 }
 
@@ -180,6 +196,48 @@ export async function deleteBead(
     return { success: true }
   } catch (error) {
     console.error("Failed to delete bead:", error)
+    return { success: false, error: String(error) }
+  }
+}
+
+// Archive or unarchive a bead
+export async function archiveBead(
+  id: string,
+  archived: boolean,
+  dbPath?: string
+): Promise<{ success: boolean; error?: string }> {
+  const options: BdOptions = dbPath ? { db: dbPath } : {}
+
+  try {
+    if (archived) {
+      await bdAddLabel(id, "archived", options)
+    } else {
+      await bdRemoveLabel(id, "archived", options)
+    }
+    return { success: true }
+  } catch (error) {
+    console.error("Failed to archive bead:", error)
+    return { success: false, error: String(error) }
+  }
+}
+
+// Move a bead to or from backlog
+export async function backlogBead(
+  id: string,
+  inBacklog: boolean,
+  dbPath?: string
+): Promise<{ success: boolean; error?: string }> {
+  const options: BdOptions = dbPath ? { db: dbPath } : {}
+
+  try {
+    if (inBacklog) {
+      await bdAddLabel(id, "backlog", options)
+    } else {
+      await bdRemoveLabel(id, "backlog", options)
+    }
+    return { success: true }
+  } catch (error) {
+    console.error("Failed to update backlog status:", error)
     return { success: false, error: String(error) }
   }
 }

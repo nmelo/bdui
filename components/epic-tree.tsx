@@ -21,7 +21,8 @@ import { CopyableId } from "@/components/copyable-id"
 import type { Epic, Bead, BeadStatus, BeadPriority } from "@/lib/types"
 import { cn } from "@/lib/utils"
 
-const statusConfig: Record<BeadStatus, { label: string; className: string; icon: React.ReactNode }> = {
+// Core status configurations
+const coreStatusConfig: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
   open: {
     label: "Open",
     className: "bg-slate-500/20 text-slate-300 border-slate-500/40",
@@ -37,6 +38,25 @@ const statusConfig: Record<BeadStatus, { label: string; className: string; icon:
     className: "bg-emerald-500/20 text-emerald-400 border-emerald-500/40",
     icon: <CheckCircle2 className="h-3 w-3" />,
   },
+  // Well-known custom statuses
+  ready_for_qa: {
+    label: "Ready for QA",
+    className: "bg-purple-500/20 text-purple-400 border-purple-500/40",
+    icon: <CircleDot className="h-3 w-3" />,
+  },
+}
+
+// Get status config with fallback for unknown custom statuses
+function getStatusConfig(status: string): { label: string; className: string; icon: React.ReactNode } {
+  if (coreStatusConfig[status]) {
+    return coreStatusConfig[status]
+  }
+  // Fallback for unknown custom statuses
+  return {
+    label: status.replace(/_/g, " ").replace(/\b\w/g, c => c.toUpperCase()),
+    className: "bg-blue-500/20 text-blue-400 border-blue-500/40",
+    icon: <Circle className="h-3 w-3" />,
+  }
 }
 
 const priorityConfig: Record<BeadPriority, { label: string; className: string; icon: React.ReactNode }> = {
@@ -679,34 +699,7 @@ function EpicRow({
 
         {!isStandalone && (
           <>
-            <div
-              role="button"
-              tabIndex={0}
-              onClick={(e) => {
-                e.stopPropagation()
-                const nextStatus: Record<BeadStatus, BeadStatus> = {
-                  open: "in_progress",
-                  in_progress: "closed",
-                  closed: "open",
-                }
-                onStatusChange(epic.id, nextStatus[epic.status])
-              }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" || e.key === " ") {
-                  e.stopPropagation()
-                  e.preventDefault()
-                  const nextStatus: Record<BeadStatus, BeadStatus> = {
-                    open: "in_progress",
-                    in_progress: "closed",
-                    closed: "open",
-                  }
-                  onStatusChange(epic.id, nextStatus[epic.status])
-                }
-              }}
-              className="hover:opacity-80 transition-opacity cursor-pointer"
-            >
-              <PillBadge config={statusConfig[epic.status]} />
-            </div>
+            <PillBadge config={getStatusConfig(epic.status)} />
             <PillBadge config={priorityConfig[epic.priority]} />
           </>
         )}

@@ -8,7 +8,7 @@ import { BeadDetailPanel } from "@/components/bead-detail-panel"
 import { FilterBar, type Filters, type SortOption } from "@/components/filter-bar"
 import { getEpics, getBeadDetail } from "@/actions/epics"
 import { getWorkspaces } from "@/actions/workspaces"
-import { updateBeadStatus, updateBeadPriority, updateBeadParent, addComment as addCommentAction, deleteBead } from "@/actions/beads"
+import { updateBeadStatus, updateBeadPriority, updateBeadParent, addComment as addCommentAction, deleteBead, archiveBead, backlogBead, getAvailableStatuses } from "@/actions/beads"
 import { useWebSocket } from "@/hooks/use-websocket"
 import { getWorkspaceCookie, setWorkspaceCookie } from "@/lib/workspace-cookie"
 import { getSortPreference, setSortPreference, getFiltersPreference, setFiltersPreference } from "@/lib/local-storage"
@@ -187,7 +187,7 @@ function findParentPath(epics: Epic[], beadId: string, path: { id: string; title
     const currentPath = [...path, { id: epic.id, title: epic.title }]
 
     // Check direct children
-    if (epic.children.some(child => child.id === beadId)) {
+    if (epic.children?.some(child => child.id === beadId)) {
       return currentPath
     }
 
@@ -216,7 +216,7 @@ function findInBead(bead: Bead, beadId: string): Bead | null {
 function findBeadById(epics: Epic[], beadId: string): Bead | null {
   for (const epic of epics) {
     if (epic.id === beadId) return epic
-    for (const child of epic.children) {
+    for (const child of epic.children ?? []) {
       const found = findInBead(child, beadId)
       if (found) return found
     }
@@ -314,6 +314,9 @@ function BeadsEpicsViewer() {
   // Keyboard navigation focus state (separate from URL-based selection)
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null)
 
+  // Available statuses for the current workspace (core + custom)
+  const [availableStatuses, setAvailableStatuses] = useState<string[]>(["open", "in_progress", "closed"])
+
   // Ref for scrolling focused items into view
   const treeContainerRef = useRef<HTMLDivElement>(null)
 
@@ -385,6 +388,43 @@ function BeadsEpicsViewer() {
   const filteredEpics = useMemo(() => filterEpics(epics, filters), [epics, filters])
   const sortedEpics = useMemo(() => sortEpics(filteredEpics, sort), [filteredEpics, sort])
 
+  // Helper to check if a bead is backlogged
+  const isBacklogged = useCallback((b: Bead) => b.labels?.includes("backlog"), [])
+
+  // Split epics into active, backlog, and archived
+  // Archived takes precedence over backlog (if both labels exist, show in archived)
+  const activeEpics = useMemo(
+    () => sortedEpics.filter(e => !e.labels?.includes("archived") && !isBacklogged(e)),
+    [sortedEpics, isBacklogged]
+  )
+  const backlogEpics = useMemo(
+    () => sortedEpics.filter(e => isBacklogged(e) && !e.labels?.includes("archived")),
+    [sortedEpics, isBacklogged]
+  )
+  const archivedEpics = useMemo(
+    () => sortedEpics.filter(e => e.labels?.includes("archived")),
+    [sortedEpics]
+  )
+
+  // Extract backlogged loose beads from _standalone epic
+  const backlogBeads = useMemo(() => {
+    const standaloneEpic = sortedEpics.find(e => e.id === "_standalone")
+    return standaloneEpic?.children.filter(isBacklogged) || []
+  }, [sortedEpics, isBacklogged])
+
+  // Filter out backlogged beads from _standalone children in active view
+  const activeEpicsWithFilteredStandalone = useMemo(() => {
+    return activeEpics.map(epic => {
+      if (epic.id === "_standalone") {
+        return {
+          ...epic,
+          children: epic.children.filter(b => !isBacklogged(b))
+        }
+      }
+      return epic
+    })
+  }, [activeEpics, isBacklogged])
+
   // Computed flat list of navigable items (respects expand/collapse state)
   // Includes bead reference and builds id→index map to avoid O(n) lookups on each keypress
   const { navigableItems, itemIndexMap } = useMemo(() => {
@@ -408,9 +448,14 @@ function BeadsEpicsViewer() {
       }
     }
 
-    sortedEpics.forEach(addEpic)
+    // Include active, backlog, and archived epics in navigation
+    activeEpicsWithFilteredStandalone.forEach(addEpic)
+    // Add backlog beads
+    backlogBeads.forEach(addBead)
+    backlogEpics.forEach(addEpic)
+    archivedEpics.forEach(addEpic)
     return { navigableItems: items, itemIndexMap: indexMap }
-  }, [sortedEpics, expandedEpics, expandedBeads])
+  }, [activeEpicsWithFilteredStandalone, backlogBeads, backlogEpics, archivedEpics, expandedEpics, expandedBeads])
 
   // Fetch workspaces on mount and restore saved selection
   useEffect(() => {
@@ -460,6 +505,8 @@ function BeadsEpicsViewer() {
   useEffect(() => {
     if (currentWorkspace) {
       loadEpics()
+      // Fetch available statuses for this workspace
+      getAvailableStatuses(currentWorkspace.databasePath).then(setAvailableStatuses)
     }
   }, [currentWorkspace, loadEpics])
 
@@ -733,6 +780,32 @@ function BeadsEpicsViewer() {
     return !isDescendantOf(epicId, targetEpicId, epics)
   }, [epics])
 
+  // Archive/unarchive handler
+  const handleArchive = useCallback(async (id: string, archived: boolean) => {
+    skipNextSSEReload.current = true
+    startTransition(async () => {
+      const result = await archiveBead(id, archived, currentWorkspace?.databasePath)
+      if (!result.success) {
+        console.error("Failed to archive bead:", result.error)
+        toast.error(archived ? "Failed to archive" : "Failed to unarchive", { description: result.error })
+      }
+      loadEpics()
+    })
+  }, [currentWorkspace?.databasePath, loadEpics])
+
+  // Backlog handler
+  const handleBacklog = useCallback(async (id: string, inBacklog: boolean) => {
+    skipNextSSEReload.current = true
+    startTransition(async () => {
+      const result = await backlogBead(id, inBacklog, currentWorkspace?.databasePath)
+      if (!result.success) {
+        console.error("Failed to update backlog status:", result.error)
+        toast.error(inBacklog ? "Failed to move to backlog" : "Failed to remove from backlog", { description: result.error })
+      }
+      loadEpics()
+    })
+  }, [currentWorkspace?.databasePath, loadEpics])
+
   return (
     <div className="h-screen flex flex-col bg-background">
       <Header
@@ -768,9 +841,12 @@ function BeadsEpicsViewer() {
                 <div className="text-center py-12 text-muted-foreground">
                   Loading epics...
                 </div>
-              ) : sortedEpics.length > 0 ? (
+              ) : activeEpicsWithFilteredStandalone.length > 0 || backlogEpics.length > 0 || backlogBeads.length > 0 || archivedEpics.length > 0 ? (
                 <EpicTree
-                  epics={sortedEpics}
+                  epics={activeEpicsWithFilteredStandalone}
+                  archivedEpics={archivedEpics}
+                  backlogEpics={backlogEpics}
+                  backlogBeads={backlogBeads}
                   expandedEpics={expandedEpics}
                   onToggleEpic={handleToggleEpic}
                   onBeadClick={handleBeadClick}
@@ -788,6 +864,8 @@ function BeadsEpicsViewer() {
                   onToggleBead={handleToggleBead}
                   focusedItemId={focusedItemId}
                   onFocusItem={setFocusedItemId}
+                  onArchive={handleArchive}
+                  onBacklog={handleBacklog}
                 />
               ) : (
                 <div className="text-center py-12 text-muted-foreground">
@@ -812,6 +890,7 @@ function BeadsEpicsViewer() {
                 parentPath={parentPath}
                 dbPath={currentWorkspace?.databasePath}
                 assignees={assignees}
+                availableStatuses={availableStatuses}
               />
             </div>
           </ResizablePanel>

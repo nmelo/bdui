@@ -1,5 +1,10 @@
 export type BeadType = "bug" | "task" | "feature" | "epic" | "chore" | "message" | "gate"
-export type BeadStatus = "open" | "in_progress" | "closed"
+
+// Core statuses that always exist
+export type CoreStatus = "open" | "in_progress" | "closed"
+
+// BeadStatus can be a core status or any custom string
+export type BeadStatus = CoreStatus | (string & {})
 export type BeadPriority = "critical" | "high" | "medium" | "low"
 
 export interface Comment {
