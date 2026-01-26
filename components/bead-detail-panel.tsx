@@ -59,10 +59,11 @@ interface BeadDetailPanelProps {
 
 // Core status configurations for styling
 const coreStatusConfig: Record<string, { label: string; colorClass: string; dotClass: string }> = {
-  open: { label: "Open", colorClass: "text-emerald-400", dotClass: "bg-emerald-500" },
-  in_progress: { label: "In Progress", colorClass: "text-blue-400", dotClass: "bg-blue-500" },
-  closed: { label: "Closed", colorClass: "text-slate-400", dotClass: "bg-slate-500" },
+  open: { label: "Open", colorClass: "text-white", dotClass: "bg-white" },
+  in_progress: { label: "In Progress", colorClass: "text-amber-400", dotClass: "bg-amber-500" },
+  closed: { label: "Closed", colorClass: "text-zinc-500", dotClass: "bg-zinc-600" },
   ready_for_qa: { label: "Ready for QA", colorClass: "text-purple-400", dotClass: "bg-purple-500" },
+  ready_to_ship: { label: "Ready to Ship", colorClass: "text-emerald-400", dotClass: "bg-emerald-500" },
 }
 
 // Get status display config with fallback for unknown custom statuses

@@ -231,7 +231,7 @@ const typeConfig: Record<BeadType, { label: string; className: string; icon: Rea
 const coreStatusConfig: Record<string, { label: string; className: string; icon: React.ReactNode }> = {
   open: {
     label: "Open",
-    className: "bg-slate-500/20 text-slate-300 border-slate-500/40",
+    className: "bg-white/10 text-white border-white/30",
     icon: <Circle className="h-3 w-3" />,
   },
   in_progress: {
@@ -241,7 +241,7 @@ const coreStatusConfig: Record<string, { label: string; className: string; icon:
   },
   closed: {
     label: "Closed",
-    className: "bg-emerald-500/20 text-emerald-400 border-emerald-500/40",
+    className: "bg-zinc-600/20 text-zinc-400 border-zinc-500/40",
     icon: <CheckCircle2 className="h-3 w-3" />,
   },
   // Well-known custom statuses
@@ -249,6 +249,11 @@ const coreStatusConfig: Record<string, { label: string; className: string; icon:
     label: "Ready for QA",
     className: "bg-purple-500/20 text-purple-400 border-purple-500/40",
     icon: <CircleDot className="h-3 w-3" />,
+  },
+  ready_to_ship: {
+    label: "Ready to Ship",
+    className: "bg-emerald-500/20 text-emerald-400 border-emerald-500/40",
+    icon: <CheckCircle2 className="h-3 w-3" />,
   },
 }
 
