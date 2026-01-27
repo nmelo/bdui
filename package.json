@@ -10,7 +10,7 @@
     "dev:ws": "pnpm exec tsx server/ws-server.ts",
     "lint": "eslint .",
     "start": "next start",
-    "release": "pnpm build && node scripts/package-release.js"
+    "release": "rm -rf dist && pnpm build && node scripts/package-release.js"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",

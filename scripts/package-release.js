@@ -8,7 +8,8 @@ const version = require('../package.json').version;
 const distDir = path.join(__dirname, '..', 'dist');
 const standaloneDir = path.join(__dirname, '..', '.next', 'standalone');
 
-// Clean and create dist directory
+// IMPORTANT: Clean dist BEFORE build to prevent it from being included in standalone output
+// (Next.js standalone copies everything from project root)
 if (fs.existsSync(distDir)) {
   fs.rmSync(distDir, { recursive: true });
 }
