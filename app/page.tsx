@@ -1,5 +1,11 @@
 "use client"
 
+declare global {
+  interface Window {
+    __BEADS_DB__?: string
+  }
+}
+
 import { useState, useEffect, useMemo, useTransition, useCallback, Suspense, useRef } from "react"
 import { useSearchParams, useRouter } from "next/navigation"
 import { Header } from "@/components/header"
@@ -507,6 +513,10 @@ function BeadsEpicsViewer() {
       loadEpics()
       // Fetch available statuses for this workspace
       getAvailableStatuses(currentWorkspace.databasePath).then(setAvailableStatuses)
+      // Expose db path for console commands
+      if (typeof window !== "undefined") {
+        window.__BEADS_DB__ = currentWorkspace.databasePath
+      }
     }
   }, [currentWorkspace, loadEpics])
 
