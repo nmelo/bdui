@@ -84,19 +84,14 @@ cleanup() {
   kill $NEXT_PID 2>/dev/null
   exit 0
 }
-trap cleanup SIGINT SIGTERM
+trap cleanup SIGINT SIGTERM EXIT
 
 # Start WebSocket server in background
 node ws-server.js &
 WS_PID=$!
 
-# Start Next.js server in foreground
-node server.js &
-NEXT_PID=$!
-
-# Wait for either process to exit
-wait -n
-cleanup
+# Start Next.js server in foreground (blocks until exit)
+node server.js
 `;
 
 fs.writeFileSync(path.join(distDir, 'beads-ui', 'beads-ui'), launcherScript, { mode: 0o755 });
