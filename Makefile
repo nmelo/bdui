@@ -39,7 +39,7 @@ publish-brew:
 	@SHA=$$(shasum -a 256 dist/beads-ui-$(VERSION)-standalone.tar.gz | cut -d' ' -f1); \
 	cd ~/Desktop/Projects/homebrew-tap && \
 	sed -i '' 's/version "[^"]*"/version "$(VERSION)"/' Formula/beads-ui.rb && \
-	sed -i '' 's|/v[0-9.]*-standalone|/v$(VERSION)-standalone|g' Formula/beads-ui.rb && \
+	sed -i '' 's|/v[0-9.]*[0-9]/beads-ui-[0-9.]*[0-9]-standalone|/v$(VERSION)/beads-ui-$(VERSION)-standalone|g' Formula/beads-ui.rb && \
 	sed -i '' "s/sha256 \"[^\"]*\"/sha256 \"$$SHA\"/" Formula/beads-ui.rb && \
 	git add Formula/beads-ui.rb && \
 	git commit -m "beads-ui: update to $(VERSION)" && \
