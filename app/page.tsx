@@ -113,6 +113,15 @@ function filterEpic(epic: Epic, filters: Filters): Epic | null {
     ?.map((childEpic) => filterEpic(childEpic, filters))
     .filter((e): e is Epic => e !== null) ?? []
 
+  // The _standalone pseudo-epic should only show if it has matching children
+  // (it's not a real epic, just a container for orphan beads)
+  if (epic.id === "_standalone") {
+    if (filteredChildren.length === 0) {
+      return null
+    }
+    return { ...epic, children: filteredChildren, childEpics: [] }
+  }
+
   // Check if epic itself matches
   const epicMatches = matchesBead(epic, filters)
 
