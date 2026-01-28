@@ -1,6 +1,6 @@
 {
   "name": "beads-ui",
-  "version": "0.2.14",
+  "version": "0.2.15",
   "description": "Web interface for viewing and managing beads issue tracking databases",
   "private": true,
   "scripts": {
@@ -74,6 +74,7 @@
     "@types/react-dom": "^19",
     "@types/ws": "^8.5.13",
     "concurrently": "^9.1.0",
+    "esbuild": "^0.27.2",
     "postcss": "^8.5",
     "tailwindcss": "^4.1.9",
     "tsx": "^4.21.0",
