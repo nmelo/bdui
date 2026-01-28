@@ -78,13 +78,27 @@ async function buildEpicHierarchy(options: BdOptions = {}): Promise<Epic[]> {
     epicsWithDependents.map(e => [e.id, e.dependents || []])
   )
 
-  // Build parent->children map from the parent field (for subtasks)
+  // Find non-epic beads that have children (dependent_count > 0)
+  // These need their dependents fetched to build subtask hierarchy
+  const parentBeadIds = nonEpicBeads
+    .filter(b => (b.dependent_count ?? 0) > 0)
+    .map(b => b.id)
+
+  // Fetch dependents for parent beads in one batched call
   const childrenByParent = new Map<string, BdBead[]>()
-  for (const bead of nonEpicBeads) {
-    if (bead.parent) {
-      const siblings = childrenByParent.get(bead.parent) || []
-      siblings.push(bead)
-      childrenByParent.set(bead.parent, siblings)
+  if (parentBeadIds.length > 0) {
+    try {
+      const parentBeadsWithDeps = await showBeads(parentBeadIds, options)
+      for (const parent of parentBeadsWithDeps) {
+        const children = (parent.dependents || [])
+          .filter(d => d.dependency_type === "parent-child")
+          .filter(d => d.status !== "tombstone" && !d.deleted_at)
+        if (children.length > 0) {
+          childrenByParent.set(parent.id, children)
+        }
+      }
+    } catch {
+      // Ignore errors - subtasks just won't be nested
     }
   }
 
@@ -148,7 +162,7 @@ async function buildEpicHierarchy(options: BdOptions = {}): Promise<Epic[]> {
   // Get top-level epics
   const topLevelEpics = Array.from(epicMap.values()).filter(e => !childEpicIds.has(e.id))
 
-  // Find orphan beads (no parent, not under any epic)
+  // Find orphan beads (not under any epic, not a child of any parent bead)
   const beadsUnderEpics = new Set<string>()
   for (const bdEpic of epicsWithDependents) {
     const dependents = epicDependentsById.get(bdEpic.id) || []
@@ -157,8 +171,16 @@ async function buildEpicHierarchy(options: BdOptions = {}): Promise<Epic[]> {
     }
   }
 
+  // Also track beads that are children of non-epic parents
+  const beadsUnderParents = new Set<string>()
+  for (const children of childrenByParent.values()) {
+    for (const child of children) {
+      beadsUnderParents.add(child.id)
+    }
+  }
+
   const orphanBeads = nonEpicBeads.filter(
-    bead => !beadsUnderEpics.has(bead.id) && !bead.parent
+    bead => !beadsUnderEpics.has(bead.id) && !beadsUnderParents.has(bead.id)
   )
 
   if (orphanBeads.length > 0) {
