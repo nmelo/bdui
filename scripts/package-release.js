@@ -15,9 +15,20 @@ if (fs.existsSync(distDir)) {
 }
 fs.mkdirSync(distDir, { recursive: true });
 
+// Bundle WebSocket server
+console.log('Bundling WebSocket server...');
+execSync('pnpm exec esbuild server/ws-server.ts --bundle --platform=node --target=node18 --outfile=dist/ws-server.js', {
+  cwd: path.join(__dirname, '..'),
+  stdio: 'inherit'
+});
+
 // Copy standalone build
 console.log('Copying standalone build...');
 fs.cpSync(standaloneDir, path.join(distDir, 'beads-ui'), { recursive: true });
+
+// Copy WebSocket server bundle
+console.log('Copying WebSocket server...');
+fs.cpSync(path.join(distDir, 'ws-server.js'), path.join(distDir, 'beads-ui', 'ws-server.js'));
 
 // Patch server.js to add graceful shutdown handlers
 console.log('Patching server.js for graceful shutdown...');
@@ -62,11 +73,30 @@ fs.cpSync(
 console.log('Creating launcher script...');
 const launcherScript = `#!/bin/bash
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-PORT=\${PORT:-3000}
-HOST=\${HOST:-localhost}
+export PORT=\${PORT:-3000}
+export HOSTNAME=\${HOSTNAME:-localhost}
+export WS_PORT=\${WS_PORT:-3001}
 
 cd "$SCRIPT_DIR"
-exec node server.js
+
+cleanup() {
+  kill $WS_PID 2>/dev/null
+  kill $NEXT_PID 2>/dev/null
+  exit 0
+}
+trap cleanup SIGINT SIGTERM
+
+# Start WebSocket server in background
+node ws-server.js &
+WS_PID=$!
+
+# Start Next.js server in foreground
+node server.js &
+NEXT_PID=$!
+
+# Wait for either process to exit
+wait -n
+cleanup
 `;
 
 fs.writeFileSync(path.join(distDir, 'beads-ui', 'beads-ui'), launcherScript, { mode: 0o755 });
