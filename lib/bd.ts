@@ -65,7 +65,10 @@ export interface BdBead {
   notes?: string
   // Dependency fields (when this bead is a dependent of another)
   dependency_type?: "parent-child" | "blocks" | "related"
-  // Epic/parent-specific
+  // List output fields
+  dependency_count?: number
+  dependent_count?: number
+  // Epic/parent-specific (from show command)
   dependents?: BdBead[]
   total_children?: number
   closed_children?: number
