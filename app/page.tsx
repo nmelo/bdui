@@ -777,20 +777,52 @@ function BeadsEpicsViewer() {
 
   const handleBeadMove = useCallback(async (beadId: string, targetEpicId: string) => {
     // "_standalone" means remove parent (set to null)
-    const newParentId = targetEpicId === "_standalone" ? null : targetEpicId
+    // "_toplevel" also means remove parent
+    const newParentId = (targetEpicId === "_standalone" || targetEpicId === "_toplevel") ? null : targetEpicId
 
     // Skip SSE reload - we'll reload manually after the update
     skipNextSSEReload.current = true
 
+    // Helper to find a bead/epic by ID in any tree
+    const findBead = (id: string, items: (Bead | Epic)[]): Bead | Epic | null => {
+      for (const item of items) {
+        if (item.id === id) return item
+        if (item.children) {
+          const found = findBead(id, item.children)
+          if (found) return found
+        }
+        if ("childEpics" in item && item.childEpics) {
+          const found = findBead(id, item.childEpics)
+          if (found) return found
+        }
+      }
+      return null
+    }
+
+    // Check if the bead is in backlog or archive
+    const bead = findBead(beadId, [...epics, ...backlogEpics, ...archivedEpics])
+    const isInBacklog = bead?.labels?.includes("backlog")
+    const isInArchive = bead?.labels?.includes("archived")
+
     startTransition(async () => {
+      // Update parent
       const result = await updateBeadParent(beadId, newParentId, currentWorkspace?.databasePath)
       if (!result.success) {
         console.error("Failed to move bead:", result.error)
       }
+
+      // If moving from backlog or archive, remove those labels
+      if (isInBacklog) {
+        await backlogBead(beadId, false, currentWorkspace?.databasePath)
+      }
+      if (isInArchive) {
+        await archiveBead(beadId, false, currentWorkspace?.databasePath)
+      }
+
       // Reload to show the moved bead in its new location
       loadEpics()
     })
-  }, [currentWorkspace?.databasePath, loadEpics])
+  }, [currentWorkspace?.databasePath, loadEpics, epics, backlogEpics, archivedEpics])
 
   // Validate if an epic can be moved to a target (prevents circular references)
   const canMoveEpic = useCallback((epicId: string, targetEpicId: string): boolean => {
