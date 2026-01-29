@@ -1,6 +1,6 @@
 {
   "name": "beads-ui",
-  "version": "0.2.18",
+  "version": "0.2.19",
   "description": "Web interface for viewing and managing beads issue tracking databases",
   "private": true,
   "scripts": {
