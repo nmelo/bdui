@@ -156,7 +156,16 @@ function filterEpics(epics: Epic[], filters: Filters): Epic[] {
 
 // Priority order for sorting (lower = higher priority)
 const priorityOrder: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 }
-const statusOrder: Record<string, number> = { open: 0, in_progress: 1, closed: 2 }
+// Status order for sorting (higher = closer to completion)
+const statusOrder: Record<string, number> = {
+  open: 0,
+  in_progress: 1,
+  ready_for_qa: 2,
+  in_qa: 3,
+  qa_passed: 4,
+  ready_to_ship: 5,
+  closed: 6,
+}
 
 function compareBead(a: Bead, b: Bead, sort: SortOption): number {
   let cmp = 0
