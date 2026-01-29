@@ -47,6 +47,7 @@ interface BeadTableProps {
   onToggleBead?: (beadId: string) => void
   focusedItemId?: string | null
   onFocusItem?: (id: string | null) => void
+  selectedBeadId?: string | null
 }
 
 // Depth-based left border colors for nested subtasks
@@ -72,6 +73,7 @@ interface BeadRowProps {
   onToggleBead?: (beadId: string) => void
   focusedItemId?: string | null
   onFocusItem?: (id: string | null) => void
+  selectedBeadId?: string | null
 }
 
 function BeadRow({
@@ -88,6 +90,7 @@ function BeadRow({
   onToggleBead,
   focusedItemId,
   onFocusItem,
+  selectedBeadId,
 }: BeadRowProps) {
   const hasChildren = bead.children && bead.children.length > 0
   const isExpanded = expandedBeads?.has(bead.id) ?? false
@@ -108,7 +111,8 @@ function BeadRow({
           "border-border/50 hover:bg-white/5 cursor-grab active:cursor-grabbing transition-colors border-l-2 select-none",
           borderColor,
           draggedBeadId === bead.id && "opacity-50",
-          focusedItemId === bead.id && "outline outline-2 outline-primary -outline-offset-2"
+          focusedItemId === bead.id && "outline outline-2 outline-primary -outline-offset-2",
+          selectedBeadId === bead.id && "bg-primary/15"
         )}
         onClick={() => onBeadClick(bead)}
       >
@@ -183,6 +187,7 @@ function BeadRow({
           onToggleBead={onToggleBead}
           focusedItemId={focusedItemId}
           onFocusItem={onFocusItem}
+          selectedBeadId={selectedBeadId}
         />
       ))}
     </>
@@ -331,6 +336,7 @@ export function BeadTable({
   onToggleBead,
   focusedItemId,
   onFocusItem,
+  selectedBeadId,
 }: BeadTableProps) {
   return (
     <Table>
@@ -362,6 +368,7 @@ export function BeadTable({
             onToggleBead={onToggleBead}
             focusedItemId={focusedItemId}
             onFocusItem={onFocusItem}
+            selectedBeadId={selectedBeadId}
           />
         ))}
       </TableBody>

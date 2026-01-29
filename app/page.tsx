@@ -902,6 +902,7 @@ function BeadsEpicsViewer() {
                   onFocusItem={setFocusedItemId}
                   onArchive={handleArchive}
                   onBacklog={handleBacklog}
+                  selectedBeadId={beadIdParam}
                 />
               ) : (
                 <div className="text-center py-12 text-muted-foreground">

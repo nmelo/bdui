@@ -136,6 +136,7 @@ interface EpicTreeProps {
   onFocusItem?: (id: string | null) => void
   onArchive?: (id: string, archived: boolean) => void
   onBacklog?: (id: string, inBacklog: boolean) => void
+  selectedBeadId?: string | null
 }
 
 // Depth-based left border colors
@@ -221,6 +222,7 @@ export function EpicTree({
   onFocusItem,
   onArchive,
   onBacklog,
+  selectedBeadId,
 }: EpicTreeProps) {
   const [isDraggingToArchive, setIsDraggingToArchive] = useState(false)
   const [isDraggingToUnarchive, setIsDraggingToUnarchive] = useState(false)
@@ -280,6 +282,7 @@ export function EpicTree({
           onToggleBead={onToggleBead}
           focusedItemId={focusedItemId}
           onFocusItem={onFocusItem}
+          selectedBeadId={selectedBeadId}
         />
       ))}
 
@@ -444,6 +447,7 @@ export function EpicTree({
                 focusedItemId={focusedItemId}
                 onFocusItem={onFocusItem}
                 isBacklog
+                selectedBeadId={selectedBeadId}
               />
             ))}
             {/* Backlog loose beads */}
@@ -463,6 +467,7 @@ export function EpicTree({
                   onToggleBead={onToggleBead}
                   focusedItemId={focusedItemId}
                   onFocusItem={onFocusItem}
+                  selectedBeadId={selectedBeadId}
                 />
               </Card>
             )}
@@ -534,6 +539,7 @@ export function EpicTree({
                 focusedItemId={focusedItemId}
                 onFocusItem={onFocusItem}
                 isArchived
+                selectedBeadId={selectedBeadId}
               />
             ))}
           </div>
@@ -565,6 +571,7 @@ interface EpicRowProps {
   onFocusItem?: (id: string | null) => void
   isArchived?: boolean
   isBacklog?: boolean
+  selectedBeadId?: string | null
 }
 
 function EpicRow({
@@ -589,6 +596,7 @@ function EpicRow({
   onFocusItem,
   isArchived = false,
   isBacklog = false,
+  selectedBeadId,
 }: EpicRowProps) {
   const isExpanded = expandedEpics.has(epic.id)
   const { closed: closedCount, total: totalCount } = getAggregatedCounts(epic)
@@ -629,7 +637,8 @@ function EpicRow({
           "w-full px-4 py-4 flex items-center gap-3 hover:bg-white/5 transition-colors select-none",
           isDraggable && "cursor-grab active:cursor-grabbing",
           dragOverEpicId === epic.id && "ring-2 ring-emerald-500 ring-inset bg-emerald-500/10",
-          draggedBeadId === epic.id && "opacity-50"
+          draggedBeadId === epic.id && "opacity-50",
+          selectedBeadId === epic.id && "bg-primary/15"
         )}
         onDragStart={(e) => {
           if (isDraggable) {
@@ -779,6 +788,7 @@ function EpicRow({
                   onToggleBead={onToggleBead}
                   focusedItemId={focusedItemId}
                   onFocusItem={onFocusItem}
+                  selectedBeadId={selectedBeadId}
                 />
               ))}
             </div>
@@ -801,6 +811,7 @@ function EpicRow({
                 onToggleBead={onToggleBead}
                 focusedItemId={focusedItemId}
                 onFocusItem={onFocusItem}
+                selectedBeadId={selectedBeadId}
               />
             </div>
           )}
