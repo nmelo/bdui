@@ -105,7 +105,7 @@ function BeadRow({
         }}
         onDragEnd={() => onDragEnd?.()}
         className={cn(
-          "border-border/50 hover:bg-white/5 cursor-pointer transition-colors border-l-2",
+          "border-border/50 hover:bg-white/5 cursor-grab active:cursor-grabbing transition-colors border-l-2 select-none",
           borderColor,
           draggedBeadId === bead.id && "opacity-50",
           focusedItemId === bead.id && "outline outline-2 outline-primary -outline-offset-2"

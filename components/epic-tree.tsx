@@ -158,7 +158,7 @@ const depthStyles = [
 
 // Recursively count closed and total from a bead and its subtasks
 function countBeadAndSubtasks(bead: Bead): { closed: number; total: number } {
-  let closed = bead.status === "closed" ? 1 : 0
+  let closed = (bead.status === "closed" || bead.status === "ready_to_ship") ? 1 : 0
   let total = 1
 
   // Recursively count subtasks
@@ -626,7 +626,8 @@ function EpicRow({
       <div
         draggable={isDraggable}
         className={cn(
-          "w-full px-4 py-4 flex items-center gap-3 hover:bg-white/5 transition-colors",
+          "w-full px-4 py-4 flex items-center gap-3 hover:bg-white/5 transition-colors select-none",
+          isDraggable && "cursor-grab active:cursor-grabbing",
           dragOverEpicId === epic.id && "ring-2 ring-emerald-500 ring-inset bg-emerald-500/10",
           draggedBeadId === epic.id && "opacity-50"
         )}
