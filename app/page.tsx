@@ -302,9 +302,8 @@ function BeadsEpicsViewer() {
   const [draggedBeadId, setDraggedBeadId] = useState<string | null>(null)
   const [dragOverEpicId, setDragOverEpicId] = useState<string | null>(null)
 
-  // Skip SSE reloads briefly after optimistic updates or after loading
+  // Track last load time to debounce SSE events
   // (SQLite WAL checkpoint from reads can trigger file watcher)
-  const skipNextSSEReload = useRef(false)
   const lastLoadTime = useRef(0)
 
   // URL-based expanded state for epics
@@ -529,15 +528,9 @@ function BeadsEpicsViewer() {
     }
   }, [currentWorkspace, loadEpics])
 
-  // Subscribe to real-time database changes (skip if we just did an optimistic update
-  // or if we recently loaded - SQLite checkpoint from reads triggers file watcher)
+  // Subscribe to real-time database changes
+  // Debounce to avoid rapid reloads from SQLite WAL checkpoints
   const handleSSEChange = useCallback(() => {
-    if (skipNextSSEReload.current) {
-      skipNextSSEReload.current = false
-      return
-    }
-    // Ignore SSE events within 2 seconds of last load to prevent feedback loop
-    // caused by SQLite WAL checkpoint modifying db file on reads
     if (Date.now() - lastLoadTime.current < 2000) {
       return
     }
@@ -694,32 +687,30 @@ function BeadsEpicsViewer() {
   }
 
   const handleStatusChange = (beadId: string, status: BeadStatus) => {
-    // Optimistic update - skip next SSE reload since we already have the new state
-    skipNextSSEReload.current = true
+    // Optimistic update for instant feedback
     updateBeadInEpics(beadId, (bead) => ({ ...bead, status }))
     // Server update
     startTransition(async () => {
       const result = await updateBeadStatus(beadId, status, currentWorkspace?.databasePath)
       if (!result.success) {
         console.error("Failed to update status:", result.error)
-        // Reload to revert optimistic update
-        loadEpics()
       }
+      // Always reload to ensure consistency
+      loadEpics()
     })
   }
 
   const handlePriorityChange = (beadId: string, priority: BeadPriority) => {
-    // Optimistic update - skip next SSE reload since we already have the new state
-    skipNextSSEReload.current = true
+    // Optimistic update for instant feedback
     updateBeadInEpics(beadId, (bead) => ({ ...bead, priority }))
     // Server update
     startTransition(async () => {
       const result = await updateBeadPriority(beadId, priority, currentWorkspace?.databasePath)
       if (!result.success) {
         console.error("Failed to update priority:", result.error)
-        // Reload to revert optimistic update
-        loadEpics()
       }
+      // Always reload to ensure consistency
+      loadEpics()
     })
   }
 
@@ -728,8 +719,7 @@ function BeadsEpicsViewer() {
   }
 
   const handleAddComment = (beadId: string, comment: Comment) => {
-    // Optimistic update - skip next SSE reload since we already have the new state
-    skipNextSSEReload.current = true
+    // Optimistic update for instant feedback
     updateBeadInEpics(beadId, (bead) => ({
       ...bead,
       comments: [...bead.comments, comment],
@@ -739,9 +729,9 @@ function BeadsEpicsViewer() {
       const result = await addCommentAction(beadId, comment.content, currentWorkspace?.databasePath)
       if (!result.success) {
         console.error("Failed to add comment:", result.error)
-        // Reload to revert optimistic update
-        loadEpics()
       }
+      // Always reload to ensure consistency
+      loadEpics()
     })
   }
 
@@ -779,9 +769,6 @@ function BeadsEpicsViewer() {
     // "_standalone" means remove parent (set to null)
     // "_toplevel" also means remove parent
     const newParentId = (targetEpicId === "_standalone" || targetEpicId === "_toplevel") ? null : targetEpicId
-
-    // Skip SSE reload - we'll reload manually after the update
-    skipNextSSEReload.current = true
 
     // Helper to find a bead/epic by ID in any tree
     const findBead = (id: string, items: (Bead | Epic)[]): Bead | Epic | null => {
@@ -833,7 +820,6 @@ function BeadsEpicsViewer() {
 
   // Archive/unarchive handler
   const handleArchive = useCallback(async (id: string, archived: boolean) => {
-    skipNextSSEReload.current = true
     startTransition(async () => {
       const result = await archiveBead(id, archived, currentWorkspace?.databasePath)
       if (!result.success) {
@@ -846,7 +832,6 @@ function BeadsEpicsViewer() {
 
   // Backlog handler
   const handleBacklog = useCallback(async (id: string, inBacklog: boolean) => {
-    skipNextSSEReload.current = true
     startTransition(async () => {
       const result = await backlogBead(id, inBacklog, currentWorkspace?.databasePath)
       if (!result.success) {
