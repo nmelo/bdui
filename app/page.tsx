@@ -46,7 +46,7 @@ function extractAssignees(epics: Epic[]): string[] {
 
   function traverseEpic(epic: Epic) {
     traverseBead(epic)
-    epic.children.forEach(traverseBead)
+    epic.children?.forEach(traverseBead)
     epic.childEpics?.forEach(traverseEpic)
   }
 
@@ -199,7 +199,7 @@ function sortEpics(epics: Epic[], sort: SortOption): Epic[] {
   return [...epics]
     .map((epic) => ({
       ...epic,
-      children: sortBeads(epic.children, sort),
+      children: sortBeads(epic.children ?? [], sort),
       childEpics: epic.childEpics ? sortEpics(epic.childEpics, sort) : undefined,
     }))
     .sort((a, b) => compareBead(a, b, sort))
@@ -441,7 +441,7 @@ function BeadsEpicsViewer() {
       if (epic.id === "_standalone") {
         return {
           ...epic,
-          children: epic.children.filter(b => !isBacklogged(b))
+          children: (epic.children ?? []).filter(b => !isBacklogged(b))
         }
       }
       return epic
@@ -467,7 +467,7 @@ function BeadsEpicsViewer() {
       items.push({ id: epic.id, type: "epic", bead: epic })
       if (expandedEpics.has(epic.id)) {
         epic.childEpics?.forEach(addEpic)
-        epic.children.forEach(addBead)
+        epic.children?.forEach(addBead)
       }
     }
 
@@ -687,7 +687,7 @@ function BeadsEpicsViewer() {
       }
       return {
         ...epic,
-        children: epic.children.map(updateBead),
+        children: (epic.children ?? []).map(updateBead),
         childEpics: epic.childEpics?.map(updateEpic),
       }
     }

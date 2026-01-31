@@ -163,6 +163,8 @@ export function BeadDetailPanel({
   }, [])
 
   // Sync state when bead changes
+  // Use specific fields as dependencies to ensure updates when content changes
+  // (React compares objects by reference, so [bead] alone may miss updates)
   useEffect(() => {
     if (bead) {
       setTitle(bead.title)
@@ -177,7 +179,7 @@ export function BeadDetailPanel({
       setIsAddingAssignee(false)
       setNewAssigneeName("")
     }
-  }, [bead])
+  }, [bead?.id, bead?.title, bead?.description, bead?.acceptanceCriteria, bead?.type, bead?.status, bead?.priority, bead?.assignee, bead?.updatedAt, JSON.stringify(bead?.labels)])
 
   // Cleanup debounce timeouts on unmount
   useEffect(() => {

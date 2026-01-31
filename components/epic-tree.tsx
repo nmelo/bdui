@@ -180,7 +180,7 @@ function getAggregatedCounts(epic: Epic): { closed: number; total: number } {
   let total = 0
 
   // Count direct child beads and their subtasks
-  for (const child of epic.children) {
+  for (const child of epic.children ?? []) {
     const childCounts = countBeadAndSubtasks(child)
     closed += childCounts.closed
     total += childCounts.total
@@ -242,7 +242,7 @@ export function EpicTree({
   const isInEpicTree = (id: string, epicList: Epic[]): boolean => {
     for (const epic of epicList) {
       if (epic.id === id) return true
-      if (isInBeadTree(id, epic.children)) return true
+      if (epic.children && isInBeadTree(id, epic.children)) return true
       if (epic.childEpics && isInEpicTree(id, epic.childEpics)) return true
     }
     return false
@@ -603,7 +603,7 @@ function EpicRow({
   const progress = totalCount > 0 ? (closedCount / totalCount) * 100 : 0
 
   const hasChildEpics = epic.childEpics && epic.childEpics.length > 0
-  const hasChildBeads = epic.children.length > 0
+  const hasChildBeads = (epic.children?.length ?? 0) > 0
   const hasContent = hasChildEpics || hasChildBeads
   const isEmpty = !hasContent
 
@@ -762,7 +762,38 @@ function EpicRow({
       </div>
 
       {isExpanded && hasContent && (
-        <div className="border-t border-border/30">
+        <div
+          className={cn(
+            "border-t border-border/30",
+            dragOverEpicId === epic.id && "bg-emerald-500/5"
+          )}
+          onDragOver={(e) => {
+            e.preventDefault()
+            e.dataTransfer.dropEffect = "move"
+            onDragOver?.(epic.id)
+          }}
+          onDragLeave={(e) => {
+            if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+              onDragOver?.(null)
+            }
+          }}
+          onDrop={(e) => {
+            e.preventDefault()
+            try {
+              const data = JSON.parse(e.dataTransfer.getData("text/plain"))
+              if (data.sourceEpicId !== epic.id) {
+                if (data.type === "epic") {
+                  if (data.beadId === epic.id) return
+                  if (canMoveEpic && !canMoveEpic(data.beadId, epic.id)) return
+                }
+                onBeadMove?.(data.beadId, epic.id)
+              }
+            } catch {
+              // Invalid drag data
+            }
+            onDragOver?.(null)
+          }}
+        >
           {/* Render child epics first */}
           {hasChildEpics && (
             <div className="py-3 pr-3 space-y-3 bg-black/20">
@@ -798,7 +829,7 @@ function EpicRow({
           {hasChildBeads && (
             <div className={cn(hasChildEpics && "border-t border-border/30")}>
               <BeadTable
-                beads={epic.children}
+                beads={epic.children ?? []}
                 onBeadClick={onBeadClick}
                 onStatusChange={onStatusChange}
                 onPriorityChange={onPriorityChange}
