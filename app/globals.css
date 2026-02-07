@@ -115,6 +115,74 @@
   --color-sidebar-ring: var(--sidebar-ring);
 }
 
+/* Bead table responsive container queries */
+.bead-table-container {
+  container-type: inline-size;
+}
+
+.bead-row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.bead-row-header {
+  display: flex;
+}
+
+.bead-row-title {
+  flex: 1;
+  text-align: left;
+}
+
+.bead-row-spacer {
+  display: none;
+}
+
+.bead-row-delete {
+  order: 99;
+}
+
+@container (max-width: 864px) {
+  .bead-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.25rem 0.5rem;
+  }
+  /* Row 1: ID, then badges right-aligned */
+  .bead-row-id { order: 1; }
+  .bead-row-spacer { display: none; }
+  .bead-row-type { order: 2; margin-left: auto; }
+  .bead-row-status { order: 3; }
+  .bead-row-priority { order: 4; }
+  /* Use assignee as line break */
+  .bead-row-assignee {
+    order: 5;
+    flex-basis: 100%;
+    height: 0;
+    margin: 0;
+    overflow: hidden;
+  }
+  /* Row 2: Title + Delete */
+  .bead-row-title {
+    order: 6;
+    flex: 1;
+  }
+  .bead-row-delete { order: 7; }
+  .bead-row-header { display: none; }
+}
+
+/* Utility class to hide scrollbars */
+.hide-scrollbar {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.hide-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

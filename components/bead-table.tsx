@@ -21,14 +21,6 @@ import {
   ChevronDown,
   ShieldCheck,
 } from "lucide-react"
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table"
 import type { Bead, BeadType, BeadStatus, BeadPriority } from "@/lib/types"
 import { cn } from "@/lib/utils"
 import { CopyableId } from "@/components/copyable-id"
@@ -95,10 +87,11 @@ function BeadRow({
   const hasChildren = bead.children && bead.children.length > 0
   const isExpanded = expandedBeads?.has(bead.id) ?? false
   const borderColor = depthBorderColors[Math.min(depth, depthBorderColors.length - 1)]
+  const indentPadding = depth > 0 ? `${depth * 16}px` : undefined
 
   return (
     <>
-      <TableRow
+      <div
         draggable
         data-item-id={bead.id}
         onDragStart={(e) => {
@@ -108,68 +101,75 @@ function BeadRow({
         }}
         onDragEnd={() => onDragEnd?.()}
         className={cn(
-          "border-border/50 hover:bg-white/5 cursor-grab active:cursor-grabbing transition-colors border-l-2 select-none",
+          "bead-row group flex items-center gap-x-2 gap-y-1 px-3 py-2 border-b border-border/50 hover:bg-white/5 cursor-grab active:cursor-grabbing transition-colors border-l-2 select-none",
           borderColor,
           draggedBeadId === bead.id && "opacity-50",
-          focusedItemId === bead.id && "outline outline-2 outline-primary -outline-offset-2",
+          focusedItemId === bead.id && "ring-1 ring-primary/60",
           selectedBeadId === bead.id && "bg-primary/15"
         )}
-        onClick={() => onBeadClick(bead)}
+        style={{ paddingLeft: indentPadding ? `calc(0.75rem + ${indentPadding})` : undefined }}
+        onClick={() => { onFocusItem?.(bead.id); onBeadClick(bead) }}
       >
-        <TableCell className="pl-6" style={{ paddingLeft: depth > 0 ? `${24 + depth * 16}px` : undefined }}>
-          <div className="flex items-center gap-1">
-            {hasChildren ? (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onToggleBead?.(bead.id)
-                }}
-                className="p-0.5 -ml-5 mr-1 text-muted-foreground hover:text-foreground transition-colors"
-              >
-                {isExpanded ? (
-                  <ChevronDown className="h-4 w-4" />
-                ) : (
-                  <ChevronRight className="h-4 w-4" />
-                )}
-              </button>
-            ) : depth > 0 ? (
-              <span className="w-5 -ml-5 mr-1" />
-            ) : null}
-            <CopyableId id={bead.id} />
-          </div>
-        </TableCell>
-        <TableCell>
+        {/* Row 1: chevron + ID + type */}
+        <div className="bead-row-id flex items-center gap-1 shrink-0">
+          {hasChildren ? (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation()
+                onToggleBead?.(bead.id)
+              }}
+              className="p-0.5 -ml-1 mr-1 text-muted-foreground hover:text-foreground transition-colors"
+            >
+              {isExpanded ? (
+                <ChevronDown className="h-4 w-4" />
+              ) : (
+                <ChevronRight className="h-4 w-4" />
+              )}
+            </button>
+          ) : depth > 0 || hasChildren === false ? (
+            <span className="w-5 -ml-1 mr-1" />
+          ) : null}
+          <CopyableId id={bead.id} />
+        </div>
+        <div className="bead-row-type shrink-0">
           <PillBadge config={typeConfig[bead.type]} />
-        </TableCell>
-        <TableCell className="font-medium text-foreground">
-          {bead.title}
-        </TableCell>
-        <TableCell>
-          <PillBadge config={getStatusConfig(bead.status)} />
-        </TableCell>
-        <TableCell>
-          <PillBadge config={priorityConfig[bead.priority]} />
-        </TableCell>
-        <TableCell className="text-muted-foreground">
-          {bead.assignee || <span className="text-muted-foreground/50 italic">Unassigned</span>}
-        </TableCell>
+        </div>
+
+        {/* Spacer for wide layout */}
+        <div className="bead-row-spacer flex-1" />
+
+        {/* Delete button */}
         {onDelete && (
-          <TableCell className="pr-4">
+          <div className="bead-row-delete shrink-0">
             <button
               type="button"
               onClick={(e) => {
                 e.stopPropagation()
                 onDelete(bead.id)
               }}
-              className="p-1.5 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors"
+              className="p-1.5 rounded hover:bg-red-500/20 text-muted-foreground hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
               title="Delete bead"
             >
               <Trash2 className="h-4 w-4" />
             </button>
-          </TableCell>
+          </div>
         )}
-      </TableRow>
+
+        {/* Row 2: title + status + priority + assignee */}
+        <div className="bead-row-title flex-1 text-left font-medium text-foreground/70 truncate min-w-0">
+          {bead.title}
+        </div>
+        <div className="bead-row-status shrink-0">
+          <PillBadge config={getStatusConfig(bead.status)} />
+        </div>
+        <div className="bead-row-priority shrink-0">
+          <PillBadge config={priorityConfig[bead.priority]} />
+        </div>
+        <div className="bead-row-assignee shrink-0 text-muted-foreground text-sm">
+          {bead.assignee || <span className="text-muted-foreground/50 italic">Unassigned</span>}
+        </div>
+      </div>
       {/* Render children if expanded */}
       {hasChildren && isExpanded && bead.children!.map((child, idx) => (
         <BeadRow
@@ -339,19 +339,19 @@ export function BeadTable({
   selectedBeadId,
 }: BeadTableProps) {
   return (
-    <Table>
-      <TableHeader>
-        <TableRow className="border-border/50 hover:bg-transparent">
-          <TableHead className="w-28 text-muted-foreground pl-6">ID</TableHead>
-          <TableHead className="w-24 text-muted-foreground">Type</TableHead>
-          <TableHead className="text-muted-foreground">Title</TableHead>
-          <TableHead className="w-32 text-muted-foreground">Status</TableHead>
-          <TableHead className="w-28 text-muted-foreground">Priority</TableHead>
-          <TableHead className="w-32 text-muted-foreground">Assignee</TableHead>
-          {onDelete && <TableHead className="w-12 text-muted-foreground"></TableHead>}
-        </TableRow>
-      </TableHeader>
-      <TableBody>
+    <div className="bead-table-container">
+      {/* Header row: hidden on narrow, visible on wide */}
+      <div className="bead-row-header items-center gap-2 px-3 py-2 text-xs text-muted-foreground border-b border-border/50">
+        <div className="w-24 shrink-0 pl-5">ID</div>
+        <div className="w-20 shrink-0">Type</div>
+        <div className="flex-1">Title</div>
+        <div className="w-28 shrink-0">Status</div>
+        <div className="w-24 shrink-0">Priority</div>
+        <div className="w-24 shrink-0">Assignee</div>
+        {onDelete && <div className="w-10 shrink-0"></div>}
+      </div>
+      {/* Bead rows */}
+      <div>
         {beads.map((bead, index) => (
           <BeadRow
             key={`${bead.id}-${index}`}
@@ -371,7 +371,7 @@ export function BeadTable({
             selectedBeadId={selectedBeadId}
           />
         ))}
-      </TableBody>
-    </Table>
+      </div>
+    </div>
   )
 }

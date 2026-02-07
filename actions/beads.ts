@@ -11,6 +11,7 @@ import {
   closeBead as bdCloseBead,
   deleteBead as bdDeleteBead,
   addComment as bdAddComment,
+  deleteComment as bdDeleteComment,
   addLabel as bdAddLabel,
   removeLabel as bdRemoveLabel,
   getCustomStatuses as bdGetCustomStatuses,
@@ -167,6 +168,25 @@ export async function addComment(
   }
 }
 
+// Delete a comment
+export async function deleteCommentAction(
+  commentId: string,
+  dbPath?: string
+): Promise<{ success: boolean; error?: string }> {
+  if (!dbPath) {
+    return { success: false, error: "Database path required" }
+  }
+  const options: BdOptions = { db: dbPath }
+
+  try {
+    await bdDeleteComment(commentId, options)
+    return { success: true }
+  } catch (error) {
+    console.error("Failed to delete comment:", error)
+    return { success: false, error: String(error) }
+  }
+}
+
 // Update bead parent (move to different epic or standalone)
 export async function updateBeadParent(
   id: string,
@@ -238,6 +258,40 @@ export async function backlogBead(
     return { success: true }
   } catch (error) {
     console.error("Failed to update backlog status:", error)
+    return { success: false, error: String(error) }
+  }
+}
+
+// Add a label to a bead
+export async function addLabelAction(
+  id: string,
+  label: string,
+  dbPath?: string
+): Promise<{ success: boolean; error?: string }> {
+  const options: BdOptions = dbPath ? { db: dbPath } : {}
+
+  try {
+    await bdAddLabel(id, label, options)
+    return { success: true }
+  } catch (error) {
+    console.error("Failed to add label:", error)
+    return { success: false, error: String(error) }
+  }
+}
+
+// Remove a label from a bead
+export async function removeLabelAction(
+  id: string,
+  label: string,
+  dbPath?: string
+): Promise<{ success: boolean; error?: string }> {
+  const options: BdOptions = dbPath ? { db: dbPath } : {}
+
+  try {
+    await bdRemoveLabel(id, label, options)
+    return { success: true }
+  } catch (error) {
+    console.error("Failed to remove label:", error)
     return { success: false, error: String(error) }
   }
 }

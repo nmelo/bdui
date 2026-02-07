@@ -15,7 +15,6 @@ import {
   Archive,
   Inbox,
 } from "lucide-react"
-import { Card } from "@/components/ui/card"
 import { BeadTable } from "@/components/bead-table"
 import { CopyableId } from "@/components/copyable-id"
 import type { Epic, Bead, BeadStatus, BeadPriority } from "@/lib/types"
@@ -148,14 +147,6 @@ const depthBorderColors = [
   "border-l-blue-500",
 ]
 
-// Depth-based background styles (progressively darker/inset)
-const depthStyles = [
-  { bg: "bg-card", shadow: "shadow-lg" },
-  { bg: "bg-slate-800/60", shadow: "shadow-inner" },
-  { bg: "bg-slate-850/70", shadow: "shadow-inner" },
-  { bg: "bg-slate-900/60", shadow: "shadow-inner" },
-  { bg: "bg-slate-900/80", shadow: "shadow-inner" },
-]
 
 // Recursively count closed and total from a bead and its subtasks
 function countBeadAndSubtasks(bead: Bead): { closed: number; total: number } {
@@ -228,6 +219,9 @@ export function EpicTree({
   const [isDraggingToUnarchive, setIsDraggingToUnarchive] = useState(false)
   const [isDraggingToBacklog, setIsDraggingToBacklog] = useState(false)
   const [isDraggingFromBacklog, setIsDraggingFromBacklog] = useState(false)
+  const [isEpicsExpanded, setIsEpicsExpanded] = useState(true)
+  const [isBacklogExpanded, setIsBacklogExpanded] = useState(true)
+  const [isArchiveExpanded, setIsArchiveExpanded] = useState(false)
 
   // Helper to check if an ID exists anywhere in a bead tree (including subtasks)
   const isInBeadTree = (id: string, beads: Bead[]): boolean => {
@@ -257,13 +251,66 @@ export function EpicTree({
   // Check if dragged item is from archive (including nested items)
   const isArchivedItem = draggedBeadId && isInEpicTree(draggedBeadId, archivedEpics)
 
+  // Count only actual epics (not _standalone)
+  const epicCount = epics.filter(e => e.id !== "_standalone").length
+  const standaloneEpic = epics.find(e => e.id === "_standalone")
+
   return (
-    <div className="space-y-3">
-      {/* Active epics */}
-      {epics.map((epic, index) => (
+    <div className="space-y-1">
+      {/* Epics section header */}
+      {epicCount > 0 && (
+        <>
+          <button
+            type="button"
+            onClick={() => setIsEpicsExpanded(!isEpicsExpanded)}
+            className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors bg-muted/10"
+          >
+            {isEpicsExpanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+            <span className="uppercase tracking-wide font-medium">Epics</span>
+            <span className="text-muted-foreground/60">({epicCount})</span>
+          </button>
+
+          {isEpicsExpanded && (
+            <div className="space-y-3 mt-1">
+              {epics.filter(e => e.id !== "_standalone").map((epic, index) => (
+                <EpicRow
+                  key={`${epic.id}-${index}`}
+                  epic={epic}
+                  depth={0}
+                  expandedEpics={expandedEpics}
+                  onToggle={onToggleEpic}
+                  onBeadClick={onBeadClick}
+                  onStatusChange={onStatusChange}
+                  onPriorityChange={onPriorityChange}
+                  onRequestDelete={onDelete}
+                  onBeadMove={onBeadMove}
+                  canMoveEpic={canMoveEpic}
+                  dragOverEpicId={dragOverEpicId}
+                  onDragOver={onDragOver}
+                  onDragStart={onDragStart}
+                  onDragEnd={onDragEnd}
+                  draggedBeadId={draggedBeadId}
+                  expandedBeads={expandedBeads}
+                  onToggleBead={onToggleBead}
+                  focusedItemId={focusedItemId}
+                  onFocusItem={onFocusItem}
+                  selectedBeadId={selectedBeadId}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* Standalone beads (rendered via EpicRow which handles the minimal header) */}
+      {standaloneEpic && (
         <EpicRow
-          key={`${epic.id}-${index}`}
-          epic={epic}
+          key="_standalone"
+          epic={standaloneEpic}
           depth={0}
           expandedEpics={expandedEpics}
           onToggle={onToggleEpic}
@@ -284,7 +331,7 @@ export function EpicTree({
           onFocusItem={onFocusItem}
           selectedBeadId={selectedBeadId}
         />
-      ))}
+      )}
 
       {/* Top-level drop zone for making epics top-level */}
       {draggedBeadId && (
@@ -384,7 +431,7 @@ export function EpicTree({
 
       {/* Backlog section */}
       {(backlogEpics.length > 0 || backlogBeads.length > 0) && (
-        <div className="mt-8">
+        <div className="mt-6">
           {/* Restore from backlog drop zone */}
           {draggedBeadId && onBacklog && isBacklogItem && (
             <div
@@ -418,48 +465,39 @@ export function EpicTree({
             </div>
           )}
 
-          <div className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
-            <Inbox className="h-4 w-4" />
-            Backlog ({backlogEpics.length + backlogBeads.length})
-          </div>
-          <div className="space-y-3 opacity-60">
-            {/* Backlog epics */}
-            {backlogEpics.map((epic, index) => (
-              <EpicRow
-                key={`backlog-${epic.id}-${index}`}
-                epic={epic}
-                depth={0}
-                expandedEpics={expandedEpics}
-                onToggle={onToggleEpic}
-                onBeadClick={onBeadClick}
-                onStatusChange={onStatusChange}
-                onPriorityChange={onPriorityChange}
-                onRequestDelete={onDelete}
-                onBeadMove={onBeadMove}
-                canMoveEpic={canMoveEpic}
-                dragOverEpicId={dragOverEpicId}
-                onDragOver={onDragOver}
-                onDragStart={onDragStart}
-                onDragEnd={onDragEnd}
-                draggedBeadId={draggedBeadId}
-                expandedBeads={expandedBeads}
-                onToggleBead={onToggleBead}
-                focusedItemId={focusedItemId}
-                onFocusItem={onFocusItem}
-                isBacklog
-                selectedBeadId={selectedBeadId}
-              />
-            ))}
-            {/* Backlog loose beads */}
-            {backlogBeads.length > 0 && (
-              <Card className="overflow-hidden border-l-4 border-border/50 border-l-blue-400 bg-card shadow-lg !py-0 !gap-0">
-                <BeadTable
-                  beads={backlogBeads}
+          <button
+            type="button"
+            onClick={() => setIsBacklogExpanded(!isBacklogExpanded)}
+            className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors bg-muted/10"
+          >
+            {isBacklogExpanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+            <Inbox className="h-3.5 w-3.5" />
+            <span className="uppercase tracking-wide font-medium">Backlog</span>
+            <span className="text-muted-foreground/60">({backlogEpics.length + backlogBeads.length})</span>
+          </button>
+
+          {isBacklogExpanded && (
+            <div className="space-y-3 mt-1 opacity-60">
+              {/* Backlog epics */}
+              {backlogEpics.map((epic, index) => (
+                <EpicRow
+                  key={`backlog-${epic.id}-${index}`}
+                  epic={epic}
+                  depth={0}
+                  expandedEpics={expandedEpics}
+                  onToggle={onToggleEpic}
                   onBeadClick={onBeadClick}
                   onStatusChange={onStatusChange}
                   onPriorityChange={onPriorityChange}
-                  onDelete={onDelete}
-                  epicId="_standalone"
+                  onRequestDelete={onDelete}
+                  onBeadMove={onBeadMove}
+                  canMoveEpic={canMoveEpic}
+                  dragOverEpicId={dragOverEpicId}
+                  onDragOver={onDragOver}
                   onDragStart={onDragStart}
                   onDragEnd={onDragEnd}
                   draggedBeadId={draggedBeadId}
@@ -467,17 +505,39 @@ export function EpicTree({
                   onToggleBead={onToggleBead}
                   focusedItemId={focusedItemId}
                   onFocusItem={onFocusItem}
+                  isBacklog
                   selectedBeadId={selectedBeadId}
                 />
-              </Card>
-            )}
-          </div>
+              ))}
+              {/* Backlog loose beads */}
+              {backlogBeads.length > 0 && (
+                <div className="space-y-0.5">
+                  <BeadTable
+                    beads={backlogBeads}
+                    onBeadClick={onBeadClick}
+                    onStatusChange={onStatusChange}
+                    onPriorityChange={onPriorityChange}
+                    onDelete={onDelete}
+                    epicId="_standalone"
+                    onDragStart={onDragStart}
+                    onDragEnd={onDragEnd}
+                    draggedBeadId={draggedBeadId}
+                    expandedBeads={expandedBeads}
+                    onToggleBead={onToggleBead}
+                    focusedItemId={focusedItemId}
+                    onFocusItem={onFocusItem}
+                    selectedBeadId={selectedBeadId}
+                  />
+                </div>
+              )}
+            </div>
+          )}
         </div>
       )}
 
       {/* Archived epics section */}
       {archivedEpics.length > 0 && (
-        <div className="mt-8">
+        <div className="mt-6">
           {/* Restore from archive drop zone */}
           {draggedBeadId && onArchive && isArchivedItem && (
             <div
@@ -511,38 +571,51 @@ export function EpicTree({
             </div>
           )}
 
-          <div className="text-sm font-medium text-muted-foreground mb-3 flex items-center gap-2">
-            <Archive className="h-4 w-4" />
-            Archived ({archivedEpics.length})
-          </div>
-          <div className="space-y-3 opacity-50">
-            {archivedEpics.map((epic, index) => (
-              <EpicRow
-                key={`archived-${epic.id}-${index}`}
-                epic={epic}
-                depth={0}
-                expandedEpics={expandedEpics}
-                onToggle={onToggleEpic}
-                onBeadClick={onBeadClick}
-                onStatusChange={onStatusChange}
-                onPriorityChange={onPriorityChange}
-                onRequestDelete={onDelete}
-                onBeadMove={onBeadMove}
-                canMoveEpic={canMoveEpic}
-                dragOverEpicId={dragOverEpicId}
-                onDragOver={onDragOver}
-                onDragStart={onDragStart}
-                onDragEnd={onDragEnd}
-                draggedBeadId={draggedBeadId}
-                expandedBeads={expandedBeads}
-                onToggleBead={onToggleBead}
-                focusedItemId={focusedItemId}
-                onFocusItem={onFocusItem}
-                isArchived
-                selectedBeadId={selectedBeadId}
-              />
-            ))}
-          </div>
+          <button
+            type="button"
+            onClick={() => setIsArchiveExpanded(!isArchiveExpanded)}
+            className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors bg-muted/10"
+          >
+            {isArchiveExpanded ? (
+              <ChevronDown className="h-4 w-4" />
+            ) : (
+              <ChevronRight className="h-4 w-4" />
+            )}
+            <Archive className="h-3.5 w-3.5" />
+            <span className="uppercase tracking-wide font-medium">Archived</span>
+            <span className="text-muted-foreground/60">({archivedEpics.length})</span>
+          </button>
+
+          {isArchiveExpanded && (
+            <div className="space-y-3 mt-1 opacity-50">
+              {archivedEpics.map((epic, index) => (
+                <EpicRow
+                  key={`archived-${epic.id}-${index}`}
+                  epic={epic}
+                  depth={0}
+                  expandedEpics={expandedEpics}
+                  onToggle={onToggleEpic}
+                  onBeadClick={onBeadClick}
+                  onStatusChange={onStatusChange}
+                  onPriorityChange={onPriorityChange}
+                  onRequestDelete={onDelete}
+                  onBeadMove={onBeadMove}
+                  canMoveEpic={canMoveEpic}
+                  dragOverEpicId={dragOverEpicId}
+                  onDragOver={onDragOver}
+                  onDragStart={onDragStart}
+                  onDragEnd={onDragEnd}
+                  draggedBeadId={draggedBeadId}
+                  expandedBeads={expandedBeads}
+                  onToggleBead={onToggleBead}
+                  focusedItemId={focusedItemId}
+                  onFocusItem={onFocusItem}
+                  isArchived
+                  selectedBeadId={selectedBeadId}
+                />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -610,8 +683,7 @@ function EpicRow({
   // Calculate left margin based on depth (for nested epics)
   const depthMargin = depth * 12
   const isStandalone = epic.id === "_standalone"
-  const borderColor = isStandalone ? "border-l-blue-400" : depthBorderColors[Math.min(depth, depthBorderColors.length - 1)]
-  const { bg, shadow } = depthStyles[Math.min(depth, depthStyles.length - 1)]
+  const borderColor = isStandalone ? "" : depthBorderColors[Math.min(depth, depthBorderColors.length - 1)]
 
   // All epics are draggable (except the special _standalone pseudo-epic)
   // - Nested epics can be moved to other parents
@@ -619,26 +691,86 @@ function EpicRow({
   // - Archived epics can be unarchived
   const isDraggable = !isStandalone
 
+  // Render standalone beads with a minimal header instead of a full card
+  if (isStandalone) {
+    return (
+      <div data-item-id={epic.id} className="mt-4">
+        <button
+          type="button"
+          onClick={() => onToggle(epic.id)}
+          className="flex items-center gap-2 px-2 py-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors bg-muted/10"
+        >
+          {isExpanded ? (
+            <ChevronDown className="h-4 w-4" />
+          ) : (
+            <ChevronRight className="h-4 w-4" />
+          )}
+          <span className="uppercase tracking-wide font-medium">Loose Beads</span>
+          <span className="text-muted-foreground/60">({epic.children?.length || 0})</span>
+        </button>
+
+        {isExpanded && (
+          <div
+            className="mt-1 space-y-0.5"
+            onDragOver={(e) => {
+              e.preventDefault()
+              e.dataTransfer.dropEffect = "move"
+              onDragOver?.("_standalone")
+            }}
+            onDragLeave={(e) => {
+              if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+                onDragOver?.(null)
+              }
+            }}
+            onDrop={(e) => {
+              e.preventDefault()
+              try {
+                const data = JSON.parse(e.dataTransfer.getData("text/plain"))
+                onBeadMove?.(data.beadId, "_standalone")
+              } catch {}
+              onDragOver?.(null)
+            }}
+          >
+            <BeadTable
+              beads={epic.children ?? []}
+              epicId="_standalone"
+              onBeadClick={onBeadClick}
+              onStatusChange={onStatusChange}
+              onPriorityChange={onPriorityChange}
+              onDelete={onRequestDelete}
+              expandedBeads={expandedBeads}
+              onToggleBead={onToggleBead}
+              focusedItemId={focusedItemId}
+              onFocusItem={onFocusItem}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              draggedBeadId={draggedBeadId}
+              selectedBeadId={selectedBeadId}
+            />
+          </div>
+        )}
+      </div>
+    )
+  }
+
   return (
-    <Card
+    <div
       data-item-id={epic.id}
       className={cn(
-        "overflow-hidden border-l-4 border-border/50 !py-0 !gap-0",
+        "overflow-hidden border-l-2",
         borderColor,
-        bg,
-        shadow,
-        focusedItemId === epic.id && "ring-2 ring-primary"
+        focusedItemId === epic.id && "ring-1 ring-primary/60"
       )}
       style={{ marginLeft: depthMargin }}
     >
       <div
         draggable={isDraggable}
         className={cn(
-          "w-full px-4 py-4 flex items-center gap-3 hover:bg-white/5 transition-colors select-none",
+          "w-full px-3 py-2.5 flex items-center gap-3 hover:bg-white/5 transition-colors select-none",
           isDraggable && "cursor-grab active:cursor-grabbing",
-          dragOverEpicId === epic.id && "ring-2 ring-emerald-500 ring-inset bg-emerald-500/10",
+          dragOverEpicId === epic.id && "ring-1 ring-emerald-500 ring-inset bg-emerald-500/10",
           draggedBeadId === epic.id && "opacity-50",
-          selectedBeadId === epic.id && "bg-primary/15"
+          selectedBeadId === epic.id && "bg-primary/10"
         )}
         onDragStart={(e) => {
           if (isDraggable) {
@@ -703,11 +835,11 @@ function EpicRow({
             "flex-1 flex items-center gap-3 min-w-0",
             !isStandalone && "cursor-pointer"
           )}
-          onClick={() => !isStandalone && onBeadClick(epic)}
+          onClick={() => { if (!isStandalone) { onFocusItem?.(epic.id); onBeadClick(epic) } }}
         >
           {!isStandalone && <CopyableId id={epic.id} className="w-28 shrink-0" />}
 
-          <span className="font-medium text-foreground flex-1 truncate">
+          <span className="font-medium text-foreground/70 flex-1 truncate">
             {epic.title}
           </span>
         </div>
@@ -848,6 +980,6 @@ function EpicRow({
           )}
         </div>
       )}
-    </Card>
+    </div>
   )
 }

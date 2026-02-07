@@ -1,4 +1,4 @@
-.PHONY: build clean release release-docker release-brew release-all version-patch version-minor
+.PHONY: build clean release release-brew release-all version-patch version-minor
 
 VERSION := $(shell node -p "require('./package.json').version")
 
@@ -22,8 +22,8 @@ release: package
 	@echo "To publish:"
 	@echo "  make publish"
 
-# Publish to GitHub, Homebrew, and Docker
-publish: publish-github publish-brew publish-docker
+# Publish to GitHub and Homebrew
+publish: publish-github publish-brew
 	@echo ""
 	@echo "Released v$(VERSION) to all channels"
 
@@ -44,12 +44,6 @@ publish-brew:
 	git add Formula/beads-ui.rb && \
 	git commit -m "beads-ui: update to $(VERSION)" && \
 	git push
-
-# Build and push Docker image
-publish-docker:
-	docker build -t ghcr.io/nmelo/beads-ui:$(VERSION) -t ghcr.io/nmelo/beads-ui:latest .
-	docker push ghcr.io/nmelo/beads-ui:$(VERSION)
-	docker push ghcr.io/nmelo/beads-ui:latest
 
 # Bump patch version and commit
 version-patch:
@@ -82,7 +76,7 @@ help:
 	@echo "Usage:"
 	@echo "  make build          - Clean and build"
 	@echo "  make release        - Build release tarball"
-	@echo "  make publish        - Publish to GitHub, Homebrew, Docker"
+	@echo "  make publish        - Publish to GitHub and Homebrew"
 	@echo "  make release-all    - Bump version + build + publish (full release)"
 	@echo ""
 	@echo "  make version-patch  - Bump patch version (0.0.X)"
@@ -91,4 +85,3 @@ help:
 	@echo ""
 	@echo "  make publish-github - Push to GitHub only"
 	@echo "  make publish-brew   - Update Homebrew tap only"
-	@echo "  make publish-docker - Build/push Docker only"

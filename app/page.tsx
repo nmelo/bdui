@@ -12,7 +12,7 @@ import { Header } from "@/components/header"
 import { EpicTree } from "@/components/epic-tree"
 import { BeadDetailPanel } from "@/components/bead-detail-panel"
 import { FilterBar, type Filters, type SortOption } from "@/components/filter-bar"
-import { getEpics, getBeadDetail } from "@/actions/epics"
+import { getEpics, getBeadDetail, getBeadComments } from "@/actions/epics"
 import { getWorkspaces } from "@/actions/workspaces"
 import { updateBeadStatus, updateBeadPriority, updateBeadParent, addComment as addCommentAction, deleteBead, archiveBead, backlogBead, getAvailableStatuses } from "@/actions/beads"
 import { useWebSocket } from "@/hooks/use-websocket"
@@ -104,7 +104,7 @@ function filterBead(bead: Bead, filters: Filters): Bead | null {
 // Recursively filter epics - keep epic if it or any descendant matches
 function filterEpic(epic: Epic, filters: Filters): Epic | null {
   // Filter child beads (including their subtasks)
-  const filteredChildren = epic.children
+  const filteredChildren = (epic.children ?? [])
     .map((child) => filterBead(child, filters))
     .filter((b): b is Bead => b !== null)
 
@@ -311,9 +311,11 @@ function BeadsEpicsViewer() {
   const [draggedBeadId, setDraggedBeadId] = useState<string | null>(null)
   const [dragOverEpicId, setDragOverEpicId] = useState<string | null>(null)
 
-  // Track last load time to debounce SSE events
+  // Track when a load is in progress to debounce SSE events
   // (SQLite WAL checkpoint from reads can trigger file watcher)
-  const lastLoadTime = useRef(0)
+  // We use a flag + short timeout instead of tracking load completion time
+  // because we want to catch external changes that happen right after a load
+  const loadInProgressRef = useRef(false)
 
   // URL-based expanded state for epics
   const searchParams = useSearchParams()
@@ -337,16 +339,24 @@ function BeadsEpicsViewer() {
   // Keyboard navigation focus state (separate from URL-based selection)
   const [focusedItemId, setFocusedItemId] = useState<string | null>(null)
 
+  // Panel focus state for left/right navigation
+  const [focusedPanel, setFocusedPanel] = useState<"left" | "right">("left")
+  const detailPanelRef = useRef<{ navigateComments: (direction: "up" | "down") => void; scrollToLatestComment: () => void } | null>(null)
+
   // Available statuses for the current workspace (core + custom)
   const [availableStatuses, setAvailableStatuses] = useState<string[]>(["open", "in_progress", "closed"])
 
   // Ref for scrolling focused items into view
   const treeContainerRef = useRef<HTMLDivElement>(null)
 
-  // Fetch full bead details (including comments) when modal opens
+  // Track which bead we've already loaded to avoid re-fetching on epics refresh
+  const loadedBeadIdRef = useRef<string | null>(null)
+
+  // Fetch full bead details (including comments) when bead selection changes
   useEffect(() => {
     if (!beadIdParam || epics.length === 0) {
       setSelectedBead(null)
+      loadedBeadIdRef.current = null
       return
     }
 
@@ -354,10 +364,19 @@ function BeadsEpicsViewer() {
     const cachedBead = findBeadById(epics, beadIdParam)
     if (!cachedBead) {
       setSelectedBead(null)
+      loadedBeadIdRef.current = null
       return
     }
 
-    // Show cached data immediately, then fetch full details with comments
+    // Only do full fetch if this is a new bead selection
+    if (loadedBeadIdRef.current === beadIdParam) {
+      // Just sync status/priority/title from epics refresh without resetting panel
+      setSelectedBead(prev => prev ? { ...prev, status: cachedBead.status, priority: cachedBead.priority, title: cachedBead.title } : cachedBead)
+      return
+    }
+
+    // New bead - show cached data immediately, then fetch full details with comments
+    loadedBeadIdRef.current = beadIdParam
     setSelectedBead(cachedBead)
     setIsLoadingBead(true)
 
@@ -365,12 +384,46 @@ function BeadsEpicsViewer() {
       .then((fullBead) => {
         if (fullBead) {
           setSelectedBead(fullBead)
+          // If data changed externally, update the bead in epics without full reload
+          const hasChanges =
+            fullBead.status !== cachedBead.status ||
+            fullBead.priority !== cachedBead.priority ||
+            fullBead.title !== cachedBead.title
+          if (hasChanges) {
+            updateBeadInEpics(fullBead.id, () => fullBead)
+          }
         }
       })
       .finally(() => {
         setIsLoadingBead(false)
       })
   }, [beadIdParam, epics, currentWorkspace?.databasePath])
+  // Poll for comment updates when a bead is selected (every 5 seconds)
+  useEffect(() => {
+    if (!selectedBead || !currentWorkspace?.databasePath) return
+
+    const pollComments = async () => {
+      try {
+        const freshComments = await getBeadComments(selectedBead.id, currentWorkspace.databasePath)
+        setSelectedBead(prev => {
+          if (!prev || prev.id !== selectedBead.id) return prev
+          // Only update if comments actually changed
+          if (JSON.stringify(prev.comments) === JSON.stringify(freshComments)) return prev
+          // If new comments were added, scroll to latest after state update
+          if (freshComments.length > prev.comments.length) {
+            setTimeout(() => detailPanelRef.current?.scrollToLatestComment(), 50)
+          }
+          return { ...prev, comments: freshComments }
+        })
+      } catch (error) {
+        console.error("Comment polling failed:", error)
+      }
+    }
+
+    const interval = setInterval(pollComments, 5000)
+    return () => clearInterval(interval)
+  }, [selectedBead?.id, currentWorkspace?.databasePath])
+
   const parentPath = useMemo(() => {
     if (!beadIdParam) return []
     return findParentPath(epics, beadIdParam) || []
@@ -429,23 +482,53 @@ function BeadsEpicsViewer() {
     [sortedEpics]
   )
 
-  // Extract backlogged loose beads from _standalone epic
+  // Extract ALL backlogged beads from anywhere in the tree
   const backlogBeads = useMemo(() => {
-    const standaloneEpic = sortedEpics.find(e => e.id === "_standalone")
-    return standaloneEpic?.children.filter(isBacklogged) || []
-  }, [sortedEpics, isBacklogged])
+    const result: Bead[] = []
 
-  // Filter out backlogged beads from _standalone children in active view
-  const activeEpicsWithFilteredStandalone = useMemo(() => {
-    return activeEpics.map(epic => {
-      if (epic.id === "_standalone") {
-        return {
-          ...epic,
-          children: (epic.children ?? []).filter(b => !isBacklogged(b))
+    function extractBackloggedBeads(beads: Bead[]) {
+      for (const bead of beads) {
+        if (isBacklogged(bead)) {
+          result.push(bead)
+        }
+        if (bead.children) {
+          extractBackloggedBeads(bead.children)
         }
       }
-      return epic
-    })
+    }
+
+    function extractFromEpic(epic: Epic) {
+      if (epic.children) {
+        extractBackloggedBeads(epic.children)
+      }
+      if (epic.childEpics) {
+        epic.childEpics.forEach(extractFromEpic)
+      }
+    }
+
+    // Scan all epics (including standalone)
+    sortedEpics.forEach(extractFromEpic)
+
+    return result
+  }, [sortedEpics, isBacklogged])
+
+  // Filter out backlogged beads from ALL epics in active view
+  const activeEpicsWithFilteredStandalone = useMemo(() => {
+    function filterBeads(beads: Bead[]): Bead[] {
+      return beads
+        .filter(b => !isBacklogged(b))
+        .map(b => b.children ? { ...b, children: filterBeads(b.children) } : b)
+    }
+
+    function filterEpic(epic: Epic): Epic {
+      return {
+        ...epic,
+        children: filterBeads(epic.children ?? []),
+        childEpics: epic.childEpics?.map(filterEpic),
+      }
+    }
+
+    return activeEpics.map(filterEpic)
   }, [activeEpics, isBacklogged])
 
   // Computed flat list of navigable items (respects expand/collapse state)
@@ -508,6 +591,9 @@ function BeadsEpicsViewer() {
 
   // Fetch epics when workspace changes
   const loadEpics = useCallback(async () => {
+    // Set flag to ignore WebSocket notifications triggered by our own read
+    // (SQLite WAL checkpoint can modify db file timestamp)
+    loadInProgressRef.current = true
     setIsLoading(true)
     try {
       const dbPath = currentWorkspace?.databasePath
@@ -519,9 +605,11 @@ function BeadsEpicsViewer() {
     } finally {
       setIsLoading(false)
       setLoadingWorkspaceId(null)
-      // Record load time to ignore SSE events triggered by our own read
-      // (SQLite WAL checkpoint can modify db file timestamp)
-      lastLoadTime.current = Date.now()
+      // Clear flag after a short delay to allow WAL checkpoint notifications to pass
+      // 300ms is enough for checkpoint while still catching quick external changes
+      setTimeout(() => {
+        loadInProgressRef.current = false
+      }, 300)
     }
   }, [currentWorkspace?.databasePath])
 
@@ -538,9 +626,9 @@ function BeadsEpicsViewer() {
   }, [currentWorkspace, loadEpics])
 
   // Subscribe to real-time database changes
-  // Debounce to avoid rapid reloads from SQLite WAL checkpoints
+  // Skip if a load is in progress (to avoid WAL checkpoint loops)
   const handleSSEChange = useCallback(() => {
-    if (Date.now() - lastLoadTime.current < 2000) {
+    if (loadInProgressRef.current) {
       return
     }
     loadEpics()
@@ -551,6 +639,17 @@ function BeadsEpicsViewer() {
     onChange: handleSSEChange,
     enabled: !!currentWorkspace,
   })
+
+  // Poll for changes every 10 seconds as backup to WebSocket
+  useEffect(() => {
+    if (!currentWorkspace) return
+    const interval = setInterval(() => {
+      if (!loadInProgressRef.current) {
+        loadEpics()
+      }
+    }, 10000)
+    return () => clearInterval(interval)
+  }, [currentWorkspace, loadEpics])
 
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDark)
@@ -589,6 +688,36 @@ function BeadsEpicsViewer() {
       // O(1) lookup instead of O(n) findIndex
       const currentIndex = focusedItemId ? (itemIndexMap.get(focusedItemId) ?? -1) : -1
 
+      // Right panel navigation
+      if (focusedPanel === "right" && selectedBead) {
+        switch (e.key) {
+          case "ArrowLeft":
+          case "h":
+            e.preventDefault()
+            setFocusedPanel("left")
+            return
+
+          case "ArrowDown":
+          case "j":
+            e.preventDefault()
+            detailPanelRef.current?.navigateComments("down")
+            return
+
+          case "ArrowUp":
+          case "k":
+            e.preventDefault()
+            detailPanelRef.current?.navigateComments("up")
+            return
+
+          case "Escape":
+            e.preventDefault()
+            setFocusedPanel("left")
+            return
+        }
+        return
+      }
+
+      // Left panel navigation
       switch (e.key) {
         case "ArrowDown":
         case "j":
@@ -611,7 +740,11 @@ function BeadsEpicsViewer() {
         case "ArrowRight":
         case "l":
           e.preventDefault()
-          if (focusedItemId) {
+          // If a bead is selected in detail panel, switch to right panel
+          if (selectedBead) {
+            setFocusedPanel("right")
+          } else if (focusedItemId) {
+            // Otherwise expand the focused item
             const item = navigableItems[currentIndex]
             if (item?.type === "epic" && !expandedEpics.has(focusedItemId)) {
               handleToggleEpic(focusedItemId)
@@ -656,7 +789,7 @@ function BeadsEpicsViewer() {
 
     window.addEventListener("keydown", handleKeyDown)
     return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [focusedItemId, navigableItems, itemIndexMap, expandedEpics, expandedBeads, beadIdParam, handleToggleEpic, handleToggleBead, handleBeadClick, handleCloseDetail])
+  }, [focusedItemId, navigableItems, itemIndexMap, expandedEpics, expandedBeads, beadIdParam, selectedBead, focusedPanel, handleToggleEpic, handleToggleBead, handleBeadClick, handleCloseDetail])
 
   // Scroll focused item into view
   useEffect(() => {
@@ -725,6 +858,8 @@ function BeadsEpicsViewer() {
 
   const handleBeadUpdate = (updatedBead: Bead) => {
     updateBeadInEpics(updatedBead.id, () => updatedBead)
+    // Reload to ensure left pane reflects the change
+    loadEpics()
   }
 
   const handleAddComment = (beadId: string, comment: Comment) => {
@@ -881,7 +1016,7 @@ function BeadsEpicsViewer() {
         >
           {/* Epic Tree - Left Panel */}
           <ResizablePanel defaultSize={55} minSize={30}>
-            <div ref={treeContainerRef} className="h-full overflow-y-auto pr-4">
+            <div ref={treeContainerRef} className="h-full overflow-y-auto pr-4 hide-scrollbar">
               {isLoading && epics.length === 0 ? (
                 <div className="text-center py-12 text-muted-foreground">
                   Loading epics...
@@ -927,6 +1062,7 @@ function BeadsEpicsViewer() {
           <ResizablePanel defaultSize={45} minSize={20}>
             <div className="h-full overflow-hidden pl-4">
               <BeadDetailPanel
+                ref={detailPanelRef}
                 bead={selectedBead}
                 onClose={handleCloseDetail}
                 onUpdate={handleBeadUpdate}
@@ -937,6 +1073,8 @@ function BeadsEpicsViewer() {
                 dbPath={currentWorkspace?.databasePath}
                 assignees={assignees}
                 availableStatuses={availableStatuses}
+                isFocused={focusedPanel === "right"}
+                onFocus={() => setFocusedPanel("right")}
               />
             </div>
           </ResizablePanel>

@@ -51,18 +51,20 @@ export interface BdBead {
   id: string
   title: string
   description?: string
+  design?: string
   status: "open" | "in_progress" | "closed" | "tombstone"
   priority: number // 0-4 (0=critical, 4=low)
   issue_type: "bug" | "feature" | "task" | "epic" | "chore"
   assignee?: string
   labels: string[]
   parent?: string
-  created_at: number
-  updated_at: number
-  closed_at?: number
+  created_at: string  // ISO date string
+  updated_at: string  // ISO date string
+  closed_at?: string  // ISO date string
   deleted_at?: string
   acceptance_criteria?: string
   notes?: string
+  external_ref?: string
   // Dependency fields (when this bead is a dependent of another)
   dependency_type?: "parent-child" | "blocks" | "related"
   // List output fields
@@ -183,6 +185,18 @@ export async function getComments(id: string, options: BdOptions = {}): Promise<
 // Add a comment to a bead
 export async function addComment(id: string, text: string, options: BdOptions = {}): Promise<void> {
   await bdExecRaw(["comment", id, text], options)
+}
+
+// Delete a comment by ID (direct SQLite since bd CLI doesn't support this)
+export async function deleteComment(commentId: string | number, options: BdOptions = {}): Promise<void> {
+  const dbPath = options.db
+  if (!dbPath) {
+    throw new Error("Database path required for deleteComment")
+  }
+  const { execSync } = await import("child_process")
+  const idStr = String(commentId).replace(/'/g, "''")
+  const sql = `DELETE FROM comments WHERE id = '${idStr}'`
+  execSync(`sqlite3 "${dbPath}" "${sql}"`, { encoding: "utf-8" })
 }
 
 // Update bead status

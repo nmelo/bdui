@@ -24,7 +24,10 @@ export interface Bead {
   type: BeadType
   title: string
   description: string
+  design?: string
   acceptanceCriteria?: string
+  notes?: string
+  externalRef?: string
   status: BeadStatus
   priority: BeadPriority
   assignee: string

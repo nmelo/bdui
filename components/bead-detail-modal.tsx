@@ -411,7 +411,7 @@ export function BeadDetailModal({
               </DropdownMenu>
 
               {/* Title */}
-              <DialogTitle className="text-lg font-semibold text-foreground truncate">
+              <DialogTitle className="text-lg font-semibold text-foreground/70 truncate">
                 {bead.title}
               </DialogTitle>
             </div>
@@ -502,7 +502,7 @@ export function BeadDetailModal({
                           </div>
                           <div className="flex-1 min-w-0 pt-0.5">
                             <div className="flex items-baseline gap-2">
-                              <span className="font-medium text-xs text-foreground">{comment.author}</span>
+                              <span className="font-medium text-xs text-foreground/70">{comment.author}</span>
                               <span className="text-xs text-muted-foreground/70">{formatDateTime(comment.timestamp)}</span>
                             </div>
                             <div className={cn(

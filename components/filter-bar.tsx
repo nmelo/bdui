@@ -72,7 +72,7 @@ export function FilterBar({ filters, onFiltersChange, assignees, sort, onSortCha
           placeholder="Search by title..."
           value={filters.search}
           onChange={(e) => updateFilter("search", e.target.value)}
-          className="pl-9 h-9 bg-card border-border"
+          className="pl-9 h-9 bg-transparent border-0 rounded-none"
         />
       </div>
 
@@ -81,7 +81,7 @@ export function FilterBar({ filters, onFiltersChange, assignees, sort, onSortCha
         value={filters.status}
         onValueChange={(value) => updateFilter("status", value as BeadStatus | "all")}
       >
-        <SelectTrigger className="w-[140px] h-9 bg-card border-border">
+        <SelectTrigger className="w-[140px] h-9 bg-transparent border-0 rounded-none">
           <SelectValue placeholder="Status" />
         </SelectTrigger>
         <SelectContent>
@@ -97,7 +97,7 @@ export function FilterBar({ filters, onFiltersChange, assignees, sort, onSortCha
         value={filters.priority}
         onValueChange={(value) => updateFilter("priority", value as BeadPriority | "all")}
       >
-        <SelectTrigger className="w-[140px] h-9 bg-card border-border">
+        <SelectTrigger className="w-[140px] h-9 bg-transparent border-0 rounded-none">
           <SelectValue placeholder="Priority" />
         </SelectTrigger>
         <SelectContent>
@@ -114,7 +114,7 @@ export function FilterBar({ filters, onFiltersChange, assignees, sort, onSortCha
         value={filters.assignee}
         onValueChange={(value) => updateFilter("assignee", value)}
       >
-        <SelectTrigger className="w-[165px] h-9 bg-card border-border">
+        <SelectTrigger className="w-[165px] h-9 bg-transparent border-0 rounded-none">
           <SelectValue placeholder="Assignee" />
         </SelectTrigger>
         <SelectContent>
@@ -132,7 +132,7 @@ export function FilterBar({ filters, onFiltersChange, assignees, sort, onSortCha
         value={encodeSortValue(sort)}
         onValueChange={(value) => onSortChange(decodeSortValue(value))}
       >
-        <SelectTrigger className="w-[235px] h-9 bg-card border-border">
+        <SelectTrigger className="w-[235px] h-9 bg-transparent border-0 rounded-none">
           <ArrowUpDown className="h-4 w-4 mr-2 text-muted-foreground" />
           <SelectValue placeholder="Sort by" />
         </SelectTrigger>

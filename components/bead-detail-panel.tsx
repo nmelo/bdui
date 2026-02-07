@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useCallback, useRef } from "react"
+import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Button } from "@/components/ui/button"
@@ -27,6 +27,10 @@ import {
   X,
   Plus,
   Trash2,
+  ArrowDown,
+  ArrowUp,
+  Rocket,
+  Maximize2,
 } from "lucide-react"
 import { CopyableId } from "@/components/copyable-id"
 import { SimpleMarkdown } from "@/components/simple-markdown"
@@ -37,11 +41,20 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip"
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog"
+import {
   updateBeadTitle,
   updateBeadType,
   updateBeadStatus,
   updateBeadPriority,
   updateBeadAssignee,
+  deleteCommentAction,
+  removeLabelAction,
+  addLabelAction,
 } from "@/actions/beads"
 
 interface BeadDetailPanelProps {
@@ -55,6 +68,13 @@ interface BeadDetailPanelProps {
   dbPath?: string
   assignees?: string[]
   availableStatuses?: string[]
+  isFocused?: boolean
+  onFocus?: () => void
+}
+
+export interface BeadDetailPanelHandle {
+  navigateComments: (direction: "up" | "down") => void
+  scrollToLatestComment: () => void
 }
 
 // Core status configurations for styling
@@ -104,7 +124,7 @@ const typeColors: Record<string, string> = {
 }
 
 
-export function BeadDetailPanel({
+export const BeadDetailPanel = forwardRef<BeadDetailPanelHandle, BeadDetailPanelProps>(function BeadDetailPanel({
   bead,
   onClose,
   onUpdate,
@@ -115,23 +135,180 @@ export function BeadDetailPanel({
   dbPath,
   assignees = [],
   availableStatuses = ["open", "in_progress", "closed"],
-}: BeadDetailPanelProps) {
+  isFocused = false,
+  onFocus,
+}, ref) {
   const [title, setTitle] = useState("")
   const [description, setDescription] = useState("")
+  const [design, setDesign] = useState("")
   const [acceptanceCriteria, setAcceptanceCriteria] = useState("")
+  const [notes, setNotes] = useState("")
   const [type, setType] = useState<BeadType>("task")
   const [status, setStatus] = useState<BeadStatus>("open")
   const [priority, setPriority] = useState<BeadPriority>("medium")
   const [assignee, setAssignee] = useState("")
   const [labels, setLabels] = useState<string[]>([])
   const [newLabel, setNewLabel] = useState("")
-  const [newComment, setNewComment] = useState("")
   const [fieldStates, setFieldStates] = useState<Record<FieldName, FieldState>>(initialFieldStates)
   const [isAddingAssignee, setIsAddingAssignee] = useState(false)
   const [newAssigneeName, setNewAssigneeName] = useState("")
 
   // Refs for debounced saves
   const titleTimeoutRef = useRef<NodeJS.Timeout | null>(null)
+  const descriptionRef = useRef<HTMLDivElement | null>(null)
+  const firstCommentRef = useRef<HTMLDivElement | null>(null)
+  const lastCommentRef = useRef<HTMLDivElement | null>(null)
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null)
+  const [isFirstCommentVisible, setIsFirstCommentVisible] = useState(false)
+  const [isLastCommentVisible, setIsLastCommentVisible] = useState(false)
+  const [isAtTop, setIsAtTop] = useState(true)
+  const [focusedCommentIndex, setFocusedCommentIndex] = useState<number | null>(null)
+  const [expandedComment, setExpandedComment] = useState<Comment | null>(null)
+  const [isExpandedView, setIsExpandedView] = useState(false)
+  const commentRefs = useRef<(HTMLDivElement | null)[]>([])
+
+  const scrollToFirstComment = useCallback(() => {
+    firstCommentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }, [])
+
+  const scrollToLastComment = useCallback(() => {
+    lastCommentRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })
+  }, [])
+
+  const scrollToTop = useCallback(() => {
+    scrollContainerRef.current?.scrollTo({ top: 0, behavior: "instant" })
+  }, [])
+
+  // Handle keyboard events for focused comments
+  const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter" && focusedCommentIndex !== null && bead) {
+      e.preventDefault()
+      setExpandedComment(bead.comments[focusedCommentIndex])
+    }
+  }, [focusedCommentIndex, bead])
+
+  // Expose comment navigation method to parent via ref
+  useImperativeHandle(ref, () => ({
+    navigateComments: (direction: "up" | "down") => {
+      if (!bead) return
+
+      // If no comments, just scroll the panel
+      if (bead.comments.length === 0) {
+        const container = scrollContainerRef.current
+        if (container) {
+          container.scrollBy({
+            top: direction === "down" ? 150 : -150,
+            behavior: "smooth",
+          })
+        }
+        return
+      }
+
+      setFocusedCommentIndex(prev => {
+        // At first comment and going up - scroll to top
+        if (prev === 0 && direction === "up") {
+          scrollContainerRef.current?.scrollTo({ top: 0, behavior: "smooth" })
+          return null
+        }
+
+        // At top (no comment focused) and going up - just scroll up, stay at null
+        if (prev === null && direction === "up") {
+          scrollContainerRef.current?.scrollBy({ top: -150, behavior: "smooth" })
+          return null
+        }
+
+        let newIndex: number
+        if (prev === null) {
+          // Going down from top - focus first comment
+          newIndex = 0
+        } else if (direction === "down") {
+          newIndex = Math.min(prev + 1, bead.comments.length - 1)
+        } else {
+          newIndex = Math.max(prev - 1, 0)
+        }
+
+        // Scroll the focused comment into view
+        setTimeout(() => {
+          commentRefs.current[newIndex]?.scrollIntoView({
+            behavior: "smooth",
+            block: "nearest",
+          })
+        }, 0)
+
+        return newIndex
+      })
+    },
+    scrollToLatestComment: () => {
+      if (!bead || bead.comments.length === 0) return
+      const lastIndex = bead.comments.length - 1
+      setFocusedCommentIndex(lastIndex)
+      setTimeout(() => {
+        commentRefs.current[lastIndex]?.scrollIntoView({
+          behavior: "smooth",
+          block: "nearest",
+        })
+      }, 0)
+    },
+  }), [bead])
+
+  const handleDeleteComment = useCallback(async (commentId: string) => {
+    if (!bead || !dbPath) return
+    const result = await deleteCommentAction(commentId, dbPath)
+    if (result.success) {
+      onUpdate({ ...bead, comments: bead.comments.filter(c => c.id !== commentId) })
+      toast.success("Comment deleted")
+    } else {
+      toast.error("Failed to delete comment", { description: result.error })
+    }
+  }, [bead, dbPath, onUpdate])
+
+  // Track visibility of first and last comments
+  useEffect(() => {
+    const firstElement = firstCommentRef.current
+    const lastElement = lastCommentRef.current
+    const container = scrollContainerRef.current
+    if (!container) {
+      setIsFirstCommentVisible(false)
+      setIsLastCommentVisible(false)
+      return
+    }
+
+    const observers: IntersectionObserver[] = []
+
+    if (firstElement) {
+      const firstObserver = new IntersectionObserver(
+        ([entry]) => setIsFirstCommentVisible(entry.isIntersecting),
+        { root: container, threshold: 0.5 }
+      )
+      firstObserver.observe(firstElement)
+      observers.push(firstObserver)
+    }
+
+    if (lastElement) {
+      const lastObserver = new IntersectionObserver(
+        ([entry]) => setIsLastCommentVisible(entry.isIntersecting),
+        { root: container, threshold: 0.5 }
+      )
+      lastObserver.observe(lastElement)
+      observers.push(lastObserver)
+    }
+
+    return () => observers.forEach(obs => obs.disconnect())
+  }, [bead?.comments.length])
+
+  // Track scroll position to show "back to top" when not at top
+  useEffect(() => {
+    const container = scrollContainerRef.current
+    if (!container) return
+
+    const handleScroll = () => {
+      setIsAtTop(container.scrollTop < 50)
+    }
+    // Check initial scroll position
+    handleScroll()
+    container.addEventListener("scroll", handleScroll)
+    return () => container.removeEventListener("scroll", handleScroll)
+  }, [bead?.id])
 
   // Helper functions for field state management
   const setFieldSaving = useCallback((field: FieldName) => {
@@ -169,7 +346,9 @@ export function BeadDetailPanel({
     if (bead) {
       setTitle(bead.title)
       setDescription(bead.description)
+      setDesign(bead.design || "")
       setAcceptanceCriteria(bead.acceptanceCriteria || "")
+      setNotes(bead.notes || "")
       setType(bead.type)
       setStatus(bead.status)
       setPriority(bead.priority)
@@ -178,8 +357,18 @@ export function BeadDetailPanel({
       setFieldStates(initialFieldStates)
       setIsAddingAssignee(false)
       setNewAssigneeName("")
+      setIsAtTop(true)
+      setFocusedCommentIndex(null)
+      setIsExpandedView(false)
     }
-  }, [bead?.id, bead?.title, bead?.description, bead?.acceptanceCriteria, bead?.type, bead?.status, bead?.priority, bead?.assignee, bead?.updatedAt, JSON.stringify(bead?.labels)])
+  }, [bead?.id, bead?.title, bead?.description, bead?.design, bead?.acceptanceCriteria, bead?.notes, bead?.type, bead?.status, bead?.priority, bead?.assignee, bead?.updatedAt, JSON.stringify(bead?.labels)])
+
+  // Reset comment focus when panel loses focus
+  useEffect(() => {
+    if (!isFocused) {
+      setFocusedCommentIndex(null)
+    }
+  }, [isFocused])
 
   // Cleanup debounce timeouts on unmount
   useEffect(() => {
@@ -293,32 +482,36 @@ export function BeadDetailPanel({
     handleAssigneeChange(trimmed)
   }, [newAssigneeName, handleAssigneeChange])
 
-  const handleAddComment = () => {
-    if (!bead || !newComment.trim()) return
-    const comment: Comment = {
-      id: `c-${Date.now()}`,
-      author: "Current User",
-      content: newComment.trim(),
-      timestamp: new Date(),
-    }
-    onAddComment(bead.id, comment)
-    setNewComment("")
-  }
-
   const handleCloseBead = () => {
     handleStatusChange("closed")
   }
 
-  const handleAddLabel = () => {
-    if (newLabel.trim() && !labels.includes(newLabel.trim())) {
-      setLabels([...labels, newLabel.trim()])
-      setNewLabel("")
+  const handleAddLabel = useCallback(async () => {
+    if (!bead || !newLabel.trim() || labels.includes(newLabel.trim())) return
+    const labelToAdd = newLabel.trim()
+    setLabels([...labels, labelToAdd])
+    setNewLabel("")
+    const result = await addLabelAction(bead.id, labelToAdd, dbPath)
+    if (result.success) {
+      onUpdate({ ...bead, labels: [...labels, labelToAdd], updatedAt: new Date() })
+    } else {
+      setLabels(labels) // revert
+      toast.error("Failed to add label", { description: result.error })
     }
-  }
+  }, [bead, newLabel, labels, dbPath, onUpdate])
 
-  const handleRemoveLabel = (label: string) => {
+  const handleRemoveLabel = useCallback(async (label: string) => {
+    if (!bead) return
+    const prevLabels = labels
     setLabels(labels.filter((l) => l !== label))
-  }
+    const result = await removeLabelAction(bead.id, label, dbPath)
+    if (result.success) {
+      onUpdate({ ...bead, labels: prevLabels.filter((l) => l !== label), updatedAt: new Date() })
+    } else {
+      setLabels(prevLabels) // revert
+      toast.error("Failed to remove label", { description: result.error })
+    }
+  }, [bead, labels, dbPath, onUpdate])
 
 
   const formatDate = (date: Date) => {
@@ -370,7 +563,12 @@ export function BeadDetailPanel({
   }
 
   return (
-    <div className="h-full flex flex-col">
+    <div
+      className="h-full flex flex-col relative outline-none"
+      onClick={onFocus}
+      onKeyDown={handleKeyDown}
+      tabIndex={0}
+    >
       {/* Header */}
       <div className="-mx-4 px-6 pt-4 pb-4 bg-card border-b border-border shrink-0">
         <TooltipProvider>
@@ -402,7 +600,7 @@ export function BeadDetailPanel({
               </DropdownMenu>
 
               {/* Title */}
-              <h2 className="text-base font-semibold text-foreground truncate">
+              <h2 className="text-base font-semibold text-foreground/70 truncate">
                 {bead.title}
               </h2>
             </div>
@@ -443,196 +641,185 @@ export function BeadDetailPanel({
                   <Button
                     variant="ghost"
                     size="icon"
-                    onClick={onClose}
+                    onClick={() => setIsExpandedView(true)}
                     className="h-7 w-7"
                   >
-                    <X className="h-4 w-4" />
+                    <Maximize2 className="h-4 w-4" />
                   </Button>
                 </TooltipTrigger>
-                <TooltipContent>Close Panel</TooltipContent>
+                <TooltipContent>Expand View</TooltipContent>
               </Tooltip>
             </div>
           </div>
 
-          {/* ID and Timestamps */}
+          {/* ID, External Ref, and Timestamps */}
           <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2 flex-wrap">
             <CopyableId id={bead.id} className="text-xs" />
-            <span>Created: {formatDate(bead.createdAt || new Date("2026-01-15"))}</span>
-            <span>Updated: {formatDate(bead.updatedAt || new Date("2026-01-17"))}</span>
+            {bead.externalRef && (
+              <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-medium">
+                {bead.externalRef}
+              </span>
+            )}
+            {bead.createdAt && <span title={formatDate(bead.createdAt)}>Created: {formatRelativeTime(bead.createdAt)}</span>}
+            {bead.updatedAt && <span title={formatDate(bead.updatedAt)}>Updated: {formatRelativeTime(bead.updatedAt)}</span>}
+          </div>
+
+          {/* Compact Controls Row */}
+          <div className="flex items-center gap-3 mt-2 text-[11px] text-muted-foreground">
+            {/* Status */}
+            <Select value={status} onValueChange={(value: BeadStatus) => handleStatusChange(value)}>
+              <SelectTrigger
+                disabled={fieldStates.status.isSaving}
+                className={cn(
+                  "h-auto p-0 border-0 bg-transparent dark:bg-transparent dark:hover:bg-transparent shadow-none rounded-none w-auto gap-1 text-[11px]",
+                  getStatusDisplayConfig(status).colorClass,
+                  fieldStates.status.hasError && "ring-1 ring-destructive"
+                )}
+              >
+                {fieldStates.status.isSaving ? <Spinner className="h-2 w-2" /> : <SelectValue />}
+              </SelectTrigger>
+              <SelectContent>
+                {availableStatuses.map((s) => {
+                  const config = getStatusDisplayConfig(s)
+                  return (
+                    <SelectItem key={s} value={s}>
+                      <span className="flex items-center gap-1.5">
+                        <span className={cn("w-1.5 h-1.5 rounded-full", config.dotClass)} />
+                        {config.label}
+                      </span>
+                    </SelectItem>
+                  )
+                })}
+              </SelectContent>
+            </Select>
+
+            <span className="text-border">|</span>
+
+            {/* Priority */}
+            <Select value={priority} onValueChange={(value: BeadPriority) => handlePriorityChange(value)}>
+              <SelectTrigger
+                disabled={fieldStates.priority.isSaving}
+                className={cn(
+                  "h-auto p-0 border-0 bg-transparent dark:bg-transparent dark:hover:bg-transparent shadow-none rounded-none w-auto gap-1 text-[11px]",
+                  priority === "critical" && "text-red-400",
+                  priority === "high" && "text-orange-400",
+                  priority === "medium" && "text-yellow-400",
+                  priority === "low" && "text-slate-400",
+                  fieldStates.priority.hasError && "ring-1 ring-destructive"
+                )}
+              >
+                {fieldStates.priority.isSaving ? <Spinner className="h-2 w-2" /> : <SelectValue />}
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="critical"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-red-500" />Critical</span></SelectItem>
+                <SelectItem value="high"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-orange-500" />High</span></SelectItem>
+                <SelectItem value="medium"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />Medium</span></SelectItem>
+                <SelectItem value="low"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-slate-500" />Low</span></SelectItem>
+              </SelectContent>
+            </Select>
+
+            <span className="text-border">|</span>
+
+            {/* Assignee */}
+            {isAddingAssignee ? (
+              <div className="flex items-center gap-1">
+                <input
+                  value={newAssigneeName}
+                  onChange={(e) => setNewAssigneeName(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") handleAddNewAssignee()
+                    if (e.key === "Escape") {
+                      setIsAddingAssignee(false)
+                      setNewAssigneeName("")
+                    }
+                  }}
+                  placeholder="Name..."
+                  autoFocus
+                  className="w-16 bg-transparent border-b border-border text-foreground text-[11px] outline-none"
+                />
+                <button
+                  onClick={handleAddNewAssignee}
+                  disabled={!newAssigneeName.trim()}
+                  className="text-primary hover:text-primary/80"
+                >
+                  <Plus className="h-3 w-3" />
+                </button>
+              </div>
+            ) : (
+              <Select
+                value={assignee || "_none"}
+                onValueChange={(value) => {
+                  if (value === "_add_new") {
+                    setIsAddingAssignee(true)
+                  } else if (value === "_none") {
+                    handleAssigneeChange("")
+                  } else {
+                    handleAssigneeChange(value)
+                  }
+                }}
+              >
+                <SelectTrigger
+                  disabled={fieldStates.assignee.isSaving}
+                  className={cn(
+                    "h-auto p-0 border-0 bg-transparent dark:bg-transparent dark:hover:bg-transparent shadow-none rounded-none w-auto gap-1 text-[11px] text-foreground/70",
+                    !assignee && "text-muted-foreground",
+                    fieldStates.assignee.hasError && "ring-1 ring-destructive"
+                  )}
+                >
+                  {fieldStates.assignee.isSaving ? (
+                    <Spinner className="h-2 w-2" />
+                  ) : (
+                    <SelectValue placeholder="assignee" />
+                  )}
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="_none">
+                    <span className="text-muted-foreground">None</span>
+                  </SelectItem>
+                  {assignees.map((a) => (
+                    <SelectItem key={a} value={a}>
+                      {a}
+                    </SelectItem>
+                  ))}
+                  <SelectItem value="_add_new" className="text-primary">
+                    <span className="flex items-center gap-1.5">
+                      <Plus className="h-3 w-3" />
+                      Add new...
+                    </span>
+                  </SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+
+            {/* Labels */}
+            {labels.length > 0 && (
+              <>
+                <span className="text-border">|</span>
+                <div className="flex items-center gap-1">
+                  {labels.map((label) => (
+                    <span key={label} className="text-[11px] text-muted-foreground flex items-center">
+                      {label}
+                      <button onClick={() => handleRemoveLabel(label)} className="ml-0.5 hover:text-red-400">
+                        <X className="h-2.5 w-2.5" />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         </TooltipProvider>
       </div>
 
       {/* Scrollable content area */}
-      <div className="flex-1 overflow-y-auto min-h-0">
-        <div className="py-4 space-y-4">
-          {/* Properties section */}
-          <div className="-mx-4 px-6 py-4 bg-muted/10 border-y border-border/20 space-y-3">
-            {/* Status, Priority, Assignee, Labels - 4 column grid */}
-            <div className="grid grid-cols-4 gap-3">
-              {/* Status */}
-              <div>
-                <span className="text-xs text-muted-foreground block mb-1">Status</span>
-                <Select value={status} onValueChange={(value: BeadStatus) => handleStatusChange(value)}>
-                  <SelectTrigger
-                    disabled={fieldStates.status.isSaving}
-                    className={cn(
-                      "w-full h-8 px-2 rounded border-border/40 text-xs font-medium bg-transparent",
-                      getStatusDisplayConfig(status).colorClass,
-                      fieldStates.status.hasError && "ring-1 ring-destructive"
-                    )}
-                  >
-                    {fieldStates.status.isSaving ? <Spinner className="h-3 w-3" /> : <SelectValue />}
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableStatuses.map((s) => {
-                      const config = getStatusDisplayConfig(s)
-                      return (
-                        <SelectItem key={s} value={s}>
-                          <span className="flex items-center gap-1.5">
-                            <span className={cn("w-1.5 h-1.5 rounded-full", config.dotClass)} />
-                            {config.label}
-                          </span>
-                        </SelectItem>
-                      )
-                    })}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Priority */}
-              <div>
-                <span className="text-xs text-muted-foreground block mb-1">Priority</span>
-                <Select value={priority} onValueChange={(value: BeadPriority) => handlePriorityChange(value)}>
-                  <SelectTrigger
-                    disabled={fieldStates.priority.isSaving}
-                    className={cn(
-                      "w-full h-8 px-2 rounded border-border/40 text-xs font-medium bg-transparent",
-                      priority === "critical" && "text-red-400",
-                      priority === "high" && "text-orange-400",
-                      priority === "medium" && "text-yellow-400",
-                      priority === "low" && "text-slate-400",
-                      fieldStates.priority.hasError && "ring-1 ring-destructive"
-                    )}
-                  >
-                    {fieldStates.priority.isSaving ? <Spinner className="h-3 w-3" /> : <SelectValue />}
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="critical"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-red-500" />Critical</span></SelectItem>
-                    <SelectItem value="high"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-orange-500" />High</span></SelectItem>
-                    <SelectItem value="medium"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-yellow-500" />Medium</span></SelectItem>
-                    <SelectItem value="low"><span className="flex items-center gap-1.5"><span className="w-1.5 h-1.5 rounded-full bg-slate-500" />Low</span></SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Assignee */}
-              <div>
-                <span className="text-xs text-muted-foreground block mb-1">Assignee</span>
-              {isAddingAssignee ? (
-                <div className="flex items-center gap-1">
-                  <Input
-                    value={newAssigneeName}
-                    onChange={(e) => setNewAssigneeName(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") handleAddNewAssignee()
-                      if (e.key === "Escape") {
-                        setIsAddingAssignee(false)
-                        setNewAssigneeName("")
-                      }
-                    }}
-                    placeholder="Name..."
-                    autoFocus
-                    className="flex-1 h-8 bg-transparent border-border/40 text-foreground text-xs focus:border-primary"
-                  />
-                  <Button
-                    onClick={handleAddNewAssignee}
-                    size="sm"
-                    variant="ghost"
-                    className="h-8 w-8 p-0"
-                    disabled={!newAssigneeName.trim()}
-                  >
-                    <Plus className="h-3 w-3" />
-                  </Button>
-                </div>
-              ) : (
-                <Select
-                  value={assignee || "_none"}
-                  onValueChange={(value) => {
-                    if (value === "_add_new") {
-                      setIsAddingAssignee(true)
-                    } else if (value === "_none") {
-                      handleAssigneeChange("")
-                    } else {
-                      handleAssigneeChange(value)
-                    }
-                  }}
-                >
-                  <SelectTrigger
-                    disabled={fieldStates.assignee.isSaving}
-                    className={cn(
-                      "w-full h-8 px-2 rounded border-border/40 text-xs font-medium bg-transparent text-foreground",
-                      !assignee && "text-muted-foreground",
-                      fieldStates.assignee.hasError && "ring-1 ring-destructive"
-                    )}
-                  >
-                    {fieldStates.assignee.isSaving ? (
-                      <Spinner className="h-3 w-3" />
-                    ) : (
-                      <SelectValue placeholder="None" />
-                    )}
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="_none">
-                      <span className="text-muted-foreground">None</span>
-                    </SelectItem>
-                    {assignees.map((a) => (
-                      <SelectItem key={a} value={a}>
-                        {a}
-                      </SelectItem>
-                    ))}
-                    <SelectItem value="_add_new" className="text-primary">
-                      <span className="flex items-center gap-1.5">
-                        <Plus className="h-3 w-3" />
-                        Add new...
-                      </span>
-                    </SelectItem>
-                  </SelectContent>
-                </Select>
-              )}
-              </div>
-
-              {/* Labels */}
-              <div>
-                <span className="text-xs text-muted-foreground block mb-1">Labels</span>
-                <div className="flex flex-wrap gap-1 items-center h-8 px-2 rounded border border-border/40 overflow-hidden">
-                  {labels.map((label) => (
-                    <Badge key={label} variant="secondary" className="text-[10px] px-1.5 py-0 h-5 rounded bg-muted/40 shrink-0">
-                      {label}
-                      <button onClick={() => handleRemoveLabel(label)} className="ml-1 hover:text-red-400">
-                        <X className="h-2.5 w-2.5" />
-                      </button>
-                    </Badge>
-                  ))}
-                  <input
-                    value={newLabel}
-                    onChange={(e) => setNewLabel(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Enter") {
-                        e.preventDefault()
-                        handleAddLabel()
-                      }
-                    }}
-                    placeholder={labels.length === 0 ? "Add..." : "+"}
-                    className="flex-1 min-w-8 h-6 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/50 outline-none"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
+      <div ref={scrollContainerRef} className="flex-1 overflow-y-auto overflow-x-hidden min-h-0 hide-scrollbar">
+        <TooltipProvider>
+        <div className="py-4 flex gap-3">
+          {/* Main content */}
+          <div className="flex-1 min-w-0 space-y-4">
 
           {/* Description */}
-          <div className="pt-4 border-t border-border/30">
+          <div ref={descriptionRef} className="pt-4 border-t border-border/30">
             <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Description</h3>
             <div className="prose prose-sm prose-invert max-w-none text-foreground/90">
               {description ? (
@@ -643,12 +830,32 @@ export function BeadDetailPanel({
             </div>
           </div>
 
+          {/* Design */}
+          {design && (
+            <div className="pt-4 border-t border-border/30">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Design</h3>
+              <div className="prose prose-sm prose-invert max-w-none text-foreground/90">
+                <SimpleMarkdown content={design} />
+              </div>
+            </div>
+          )}
+
           {/* Acceptance Criteria */}
           {acceptanceCriteria && (
             <div className="pt-4 border-t border-border/30">
               <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Acceptance Criteria</h3>
               <div className="prose prose-sm prose-invert max-w-none text-foreground/90">
                 <SimpleMarkdown content={acceptanceCriteria} />
+              </div>
+            </div>
+          )}
+
+          {/* Notes */}
+          {notes && (
+            <div className="pt-4 border-t border-border/30">
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Notes</h3>
+              <div className="prose prose-sm prose-invert max-w-none text-foreground/90">
+                <SimpleMarkdown content={notes} />
               </div>
             </div>
           )}
@@ -692,21 +899,374 @@ export function BeadDetailPanel({
 
           {/* Comments */}
           {bead.comments.length > 0 && (
-            <TooltipProvider>
-              <div className="mt-6 space-y-4">
+            <div className="mt-6 space-y-4">
+              {bead.comments.map((comment, index) => (
+                <div
+                  key={comment.id}
+                  ref={el => {
+                    commentRefs.current[index] = el
+                    if (index === 0) {
+                      firstCommentRef.current = el
+                    }
+                    if (index === bead.comments.length - 1) {
+                      lastCommentRef.current = el
+                    }
+                  }}
+                  className={cn(
+                    "rounded-xl bg-card shadow-md shadow-black/20 overflow-hidden transition-all cursor-pointer scroll-mt-2",
+                    focusedCommentIndex === index && "ring-1 ring-primary/60"
+                  )}
+                  onClick={() => { onFocus?.(); setFocusedCommentIndex(index) }}
+                >
+                  <div className="group flex items-center gap-3 px-4 py-2.5 bg-muted/30 border-b border-border/20">
+                    <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-semibold bg-primary/20 text-primary">
+                      {comment.author.charAt(0).toUpperCase()}
+                    </div>
+                    <span className="font-medium text-sm text-foreground/70">{comment.author}</span>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <span className="text-xs text-muted-foreground/60 cursor-default ml-auto">{formatRelativeTime(comment.timestamp)}</span>
+                      </TooltipTrigger>
+                      <TooltipContent>{formatDateTime(comment.timestamp)}</TooltipContent>
+                    </Tooltip>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); setExpandedComment(comment) }}
+                      className="p-1 rounded hover:bg-muted text-muted-foreground/40 hover:text-foreground transition-colors opacity-0 group-hover:opacity-100"
+                      title="Expand comment"
+                    >
+                      <Maximize2 className="h-3.5 w-3.5" />
+                    </button>
+                    <button
+                      type="button"
+                      onClick={(e) => { e.stopPropagation(); handleDeleteComment(comment.id) }}
+                      className="p-1 rounded hover:bg-red-500/20 text-muted-foreground/40 hover:text-red-400 transition-colors opacity-0 group-hover:opacity-100"
+                      title="Delete comment"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div className="px-4 py-3 text-sm text-foreground/90">
+                    <SimpleMarkdown content={comment.content} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          </div>
+
+          {/* Content Minimap */}
+          <div className="w-8 shrink-0 flex flex-col gap-1 py-1 sticky top-0 self-start">
+            {/* Description block */}
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={() => {
+                    setFocusedCommentIndex(null)
+                    descriptionRef.current?.scrollIntoView({
+                      behavior: "smooth",
+                      block: "start",
+                    })
+                  }}
+                  className={cn(
+                    "w-full rounded-sm transition-all hover:opacity-100",
+                    focusedCommentIndex === null
+                      ? "bg-blue-500 opacity-100"
+                      : "bg-blue-500/30 opacity-60 hover:bg-blue-500/50"
+                  )}
+                  style={{ height: `${Math.max(16, Math.min(40, Math.floor((description?.length || 0) / 50) + 16))}px` }}
+                />
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                <p className="font-medium text-xs">Description</p>
+              </TooltipContent>
+            </Tooltip>
+
+            {/* Comment blocks */}
+            {bead.comments.map((comment, index) => {
+              const contentLength = comment.content.length
+              const height = Math.max(12, Math.min(60, Math.floor(contentLength / 20) + 12))
+              return (
+                <Tooltip key={comment.id}>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => {
+                        setFocusedCommentIndex(index)
+                        commentRefs.current[index]?.scrollIntoView({
+                          behavior: "smooth",
+                          block: "nearest",
+                        })
+                      }}
+                      className={cn(
+                        "w-full rounded-sm transition-all hover:opacity-100 flex items-center justify-center overflow-hidden",
+                        focusedCommentIndex === index
+                          ? "bg-primary opacity-100"
+                          : "bg-muted-foreground/30 opacity-60 hover:bg-muted-foreground/50"
+                      )}
+                      style={{ height: `${height}px` }}
+                    >
+                      <span className="text-[7px] font-medium text-white/80 truncate px-0.5">
+                        {comment.author.slice(0, 5)}
+                      </span>
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="left" className="max-w-[200px]">
+                    <p className="font-medium text-xs">{comment.author}</p>
+                    <p className="text-xs text-muted-foreground truncate">{comment.content.slice(0, 50)}{comment.content.length > 50 ? "..." : ""}</p>
+                  </TooltipContent>
+                </Tooltip>
+              )
+            })}
+          </div>
+
+        </div>
+        </TooltipProvider>
+      </div>
+
+      {/* Footer with Ready to Ship button */}
+      {status !== "ready_to_ship" && status !== "closed" && availableStatuses.includes("ready_to_ship") && (
+        <div className="-mx-4 px-6 py-3 bg-card border-t border-border shrink-0">
+          <Button
+            onClick={() => handleStatusChange("ready_to_ship")}
+            disabled={fieldStates.status.isSaving}
+            className="w-full bg-emerald-600 hover:bg-emerald-500 text-white"
+          >
+            {fieldStates.status.isSaving ? (
+              <Spinner className="h-4 w-4 mr-2" />
+            ) : (
+              <Rocket className="h-4 w-4 mr-2" />
+            )}
+            Ready to Ship
+          </Button>
+        </div>
+      )}
+
+      {/* Floating navigation buttons */}
+      {bead.comments.length > 0 && (isAtTop ? !isFirstCommentVisible : true) && (
+        <div className={cn(
+          "absolute left-1/2 -translate-x-1/2 z-10",
+          status !== "ready_to_ship" && status !== "closed" && availableStatuses.includes("ready_to_ship")
+            ? "bottom-20"
+            : "bottom-4"
+        )}>
+          {isAtTop && !isFirstCommentVisible ? (
+            // At top, comments not visible → go to first comment
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={scrollToFirstComment}
+              className="shadow-lg shadow-black/30 hover:shadow-black/40 transition-shadow"
+            >
+              <ArrowDown className="h-4 w-4 mr-1.5" />
+              First comment
+            </Button>
+          ) : isLastCommentVisible ? (
+            // At bottom → go to first comment
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={scrollToFirstComment}
+              className="shadow-lg shadow-black/30 hover:shadow-black/40 transition-shadow"
+            >
+              <ArrowUp className="h-4 w-4 mr-1.5" />
+              First comment
+            </Button>
+          ) : (
+            // In middle → go to latest comment
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={scrollToLastComment}
+              className="shadow-lg shadow-black/30 hover:shadow-black/40 transition-shadow"
+            >
+              <ArrowDown className="h-4 w-4 mr-1.5" />
+              Latest comment
+            </Button>
+          )}
+        </div>
+      )}
+
+      {/* Expanded Comment Modal */}
+      <Dialog open={!!expandedComment} onOpenChange={(open) => !open && setExpandedComment(null)}>
+        <DialogContent className="!w-[80vw] !max-w-[80vw] max-h-[90vh] h-[90vh] flex flex-col">
+          <DialogHeader className="shrink-0">
+            <DialogTitle className="flex items-center gap-3">
+              <div className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-semibold bg-primary/20 text-primary">
+                {expandedComment?.author.charAt(0).toUpperCase()}
+              </div>
+              <span className="font-medium">{expandedComment?.author}</span>
+              <span className="text-sm text-muted-foreground font-normal">
+                {expandedComment && formatDateTime(expandedComment.timestamp)}
+              </span>
+            </DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 overflow-y-auto py-4">
+            <div className="prose prose-sm prose-invert max-w-none text-foreground/90">
+              {expandedComment && <SimpleMarkdown content={expandedComment.content} />}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Expanded Bead Detail Modal */}
+      <Dialog open={isExpandedView} onOpenChange={setIsExpandedView}>
+        <DialogContent className="!w-[85vw] !max-w-[85vw] max-h-[90vh] h-[90vh] flex flex-col p-0">
+          <DialogHeader className="px-6 pt-6 pb-4 border-b border-border shrink-0">
+            <div className="flex items-start justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <span className={cn(
+                  "px-2 py-1 text-xs font-medium rounded border capitalize shrink-0",
+                  typeColors[type]
+                )}>
+                  {type}
+                </span>
+                <DialogTitle className="text-lg font-semibold text-foreground/70 truncate">
+                  {bead.title}
+                </DialogTitle>
+              </div>
+            </div>
+            <div className="flex items-center gap-3 text-xs text-muted-foreground mt-2 flex-wrap">
+              <CopyableId id={bead.id} className="text-xs" />
+              {bead.externalRef && (
+                <span className="px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400 font-medium">
+                  {bead.externalRef}
+                </span>
+              )}
+              {bead.createdAt && <span title={formatDate(bead.createdAt)}>Created: {formatRelativeTime(bead.createdAt)}</span>}
+              {bead.updatedAt && <span title={formatDate(bead.updatedAt)}>Updated: {formatRelativeTime(bead.updatedAt)}</span>}
+            </div>
+            <div className="flex items-center gap-3 mt-2 text-[11px] text-muted-foreground">
+              <span className={cn(
+                getStatusDisplayConfig(status).colorClass,
+              )}>
+                {getStatusDisplayConfig(status).label}
+              </span>
+              <span className="text-border">|</span>
+              <span className={cn(
+                priority === "critical" && "text-red-400",
+                priority === "high" && "text-orange-400",
+                priority === "medium" && "text-yellow-400",
+                priority === "low" && "text-slate-400",
+              )}>
+                {priority}
+              </span>
+              {assignee && (
+                <>
+                  <span className="text-border">|</span>
+                  <span>{assignee}</span>
+                </>
+              )}
+              {labels.length > 0 && (
+                <>
+                  <span className="text-border">|</span>
+                  <div className="flex items-center gap-1">
+                    {labels.map((label) => (
+                      <span key={label} className="text-[11px] text-muted-foreground">{label}</span>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          </DialogHeader>
+
+          <div className="flex-1 overflow-y-auto px-6 py-4 space-y-6">
+            {/* Description */}
+            <div>
+              <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Description</h3>
+              <div className="prose prose-sm prose-invert max-w-none text-foreground/90">
+                {description ? (
+                  <SimpleMarkdown content={description} />
+                ) : (
+                  <p className="text-muted-foreground/50 italic text-sm">No description</p>
+                )}
+              </div>
+            </div>
+
+            {/* Design */}
+            {design && (
+              <div className="pt-4 border-t border-border/30">
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Design</h3>
+                <div className="prose prose-sm prose-invert max-w-none text-foreground/90">
+                  <SimpleMarkdown content={design} />
+                </div>
+              </div>
+            )}
+
+            {/* Acceptance Criteria */}
+            {acceptanceCriteria && (
+              <div className="pt-4 border-t border-border/30">
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Acceptance Criteria</h3>
+                <div className="prose prose-sm prose-invert max-w-none text-foreground/90">
+                  <SimpleMarkdown content={acceptanceCriteria} />
+                </div>
+              </div>
+            )}
+
+            {/* Notes */}
+            {notes && (
+              <div className="pt-4 border-t border-border/30">
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide mb-2">Notes</h3>
+                <div className="prose prose-sm prose-invert max-w-none text-foreground/90">
+                  <SimpleMarkdown content={notes} />
+                </div>
+              </div>
+            )}
+
+            {/* Dependencies */}
+            {(bead.blockedBy?.length || bead.blocks?.length) ? (
+              <div className="pt-4 border-t border-border/30 space-y-2">
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Dependencies</h3>
+                {bead.blockedBy && bead.blockedBy.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground">Blocked by:</span>
+                    {bead.blockedBy.map(dep => (
+                      <button
+                        key={dep.id}
+                        onClick={() => { setIsExpandedView(false); onBeadNavigate?.(dep.id) }}
+                        className="text-xs px-2 py-0.5 rounded bg-red-500/10 text-red-400 hover:bg-red-500/20 transition-colors"
+                        title={dep.title}
+                      >
+                        {dep.id}
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {bead.blocks && bead.blocks.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <span className="text-xs text-muted-foreground">Blocks:</span>
+                    {bead.blocks.map(dep => (
+                      <button
+                        key={dep.id}
+                        onClick={() => { setIsExpandedView(false); onBeadNavigate?.(dep.id) }}
+                        className="text-xs px-2 py-0.5 rounded bg-amber-500/10 text-amber-400 hover:bg-amber-500/20 transition-colors"
+                        title={dep.title}
+                      >
+                        {dep.id}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ) : null}
+
+            {/* Comments */}
+            {bead.comments.length > 0 && (
+              <div className="pt-4 border-t border-border/30 space-y-4">
+                <h3 className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Comments ({bead.comments.length})
+                </h3>
                 {bead.comments.map((comment) => (
-                  <div key={comment.id} className="rounded-xl bg-card shadow-md shadow-black/20 overflow-hidden">
-                    <div className="flex items-center gap-3 px-4 py-2.5 bg-muted/30 border-b border-border/20">
+                  <div
+                    key={comment.id}
+                    className="rounded-xl bg-card shadow-md shadow-black/20 overflow-hidden"
+                  >
+                    <div className="group flex items-center gap-3 px-4 py-2.5 bg-muted/30 border-b border-border/20">
                       <div className="w-7 h-7 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-semibold bg-primary/20 text-primary">
                         {comment.author.charAt(0).toUpperCase()}
                       </div>
-                      <span className="font-medium text-sm text-foreground">{comment.author}</span>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <span className="text-xs text-muted-foreground/60 cursor-default ml-auto">{formatRelativeTime(comment.timestamp)}</span>
-                        </TooltipTrigger>
-                        <TooltipContent>{formatDateTime(comment.timestamp)}</TooltipContent>
-                      </Tooltip>
+                      <span className="font-medium text-sm text-foreground/70">{comment.author}</span>
+                      <span className="text-xs text-muted-foreground/60 ml-auto">{formatRelativeTime(comment.timestamp)}</span>
                     </div>
                     <div className="px-4 py-3 text-sm text-foreground/90">
                       <SimpleMarkdown content={comment.content} />
@@ -714,33 +1274,10 @@ export function BeadDetailPanel({
                   </div>
                 ))}
               </div>
-            </TooltipProvider>
-          )}
-
-          {/* New comment input */}
-          <div className="mt-6 flex gap-2.5">
-            <div className="w-6 h-6 rounded-full flex-shrink-0 flex items-center justify-center text-xs font-medium bg-muted/50 text-muted-foreground">
-              U
-            </div>
-            <div className="flex-1">
-              <Textarea
-                value={newComment}
-                onChange={(e) => setNewComment(e.target.value)}
-                placeholder="Write a comment..."
-                rows={2}
-                className="min-h-0 bg-transparent border-border/40 text-foreground text-sm resize-none focus:border-primary py-2"
-              />
-              {newComment.trim() && (
-                <div className="flex justify-end mt-2">
-                  <Button onClick={handleAddComment} size="sm" className="h-7 text-xs">
-                    Comment
-                  </Button>
-                </div>
-              )}
-            </div>
+            )}
           </div>
-        </div>
-      </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
-}
+})

@@ -12,11 +12,6 @@ brew install nmelo/tap/beads-ui
 beads-ui
 ```
 
-**Docker:**
-```bash
-docker run -p 3000:3000 -v ~/.config/beads-ui:/root/.config/beads-ui ghcr.io/nmelo/beads-ui
-```
-
 Then open http://localhost:3000
 
 ## Features

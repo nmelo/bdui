@@ -15,10 +15,10 @@ import {
 } from "@/lib/bd"
 import type { Epic, Bead, Comment, BeadStatus, BeadPriority, BeadType } from "@/lib/types"
 
-// Convert bd timestamp (unix seconds) to Date
-function toDate(timestamp?: number): Date | undefined {
-  if (!timestamp) return undefined
-  return new Date(timestamp * 1000)
+// Convert bd ISO date string to Date
+function toDate(isoString?: string): Date | undefined {
+  if (!isoString) return undefined
+  return new Date(isoString)
 }
 
 // Convert BdComment to Comment
@@ -38,7 +38,10 @@ function convertBead(bdBead: BdBead, comments: Comment[] = []): Bead {
     type: mapType(bdBead.issue_type) as BeadType,
     title: bdBead.title,
     description: bdBead.description || "",
+    design: bdBead.design,
     acceptanceCriteria: bdBead.acceptance_criteria,
+    notes: bdBead.notes,
+    externalRef: bdBead.external_ref,
     status: bdBead.status as BeadStatus,
     priority: mapPriority(bdBead.priority) as BeadPriority,
     assignee: bdBead.assignee || "",

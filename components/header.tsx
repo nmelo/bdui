@@ -24,7 +24,7 @@ export function Header({
   isPending,
 }: HeaderProps) {
   return (
-    <header className="border-b border-border bg-card">
+    <header className="border-b border-border/50 bg-transparent">
       <div className="px-6 py-3 flex items-center justify-between">
         <div className="flex items-center gap-8">
           <div className="flex items-center gap-2">
@@ -33,15 +33,15 @@ export function Header({
               <Circle className="h-2 w-2 fill-primary/70 text-primary/70" />
               <Circle className="h-1.5 w-1.5 fill-primary/50 text-primary/50" />
             </div>
-            <span className="text-xl font-semibold text-foreground">Beads</span>
+            <span className="text-xl font-semibold text-foreground/70">Beads</span>
           </div>
 
-          <div className="flex items-center gap-1 p-1 rounded-lg bg-background/50 border border-border">
+          <div className="flex items-center gap-1 p-1 bg-transparent">
             {workspaces.map((workspace) => (
               <button
                 key={workspace.id}
                 onClick={() => onWorkspaceChange(workspace)}
-                className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all flex items-center gap-1.5 ${
+                className={`px-3 py-1.5 text-sm font-medium transition-all flex items-center gap-1.5 ${
                   workspace.id === currentWorkspace.id
                     ? "bg-primary text-primary-foreground shadow-sm"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/50"

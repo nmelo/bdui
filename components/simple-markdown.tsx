@@ -32,16 +32,16 @@ export function SimpleMarkdown({ content, className = "" }: SimpleMarkdownProps)
       remarkPlugins={[remarkGfm]}
       components={{
         h1: ({ children }) => (
-          <h1 className="text-lg font-semibold text-foreground mt-4 mb-2">{children}</h1>
+          <h1 className="text-lg font-semibold text-foreground/70 mt-4 mb-2">{children}</h1>
         ),
         h2: ({ children }) => (
-          <h2 className="text-base font-semibold text-foreground mt-4 mb-2">{children}</h2>
+          <h2 className="text-base font-semibold text-foreground/70 mt-4 mb-2">{children}</h2>
         ),
         h3: ({ children }) => (
-          <h3 className="text-sm font-semibold text-foreground mt-3 mb-2">{children}</h3>
+          <h3 className="text-sm font-semibold text-foreground/70 mt-3 mb-2">{children}</h3>
         ),
         h4: ({ children }) => (
-          <h4 className="text-sm font-semibold text-foreground mt-2 mb-0.5">{children}</h4>
+          <h4 className="text-sm font-semibold text-foreground/70 mt-2 mb-0.5">{children}</h4>
         ),
         p: ({ children }) => (
           <p className="text-sm text-muted-foreground my-1">{children}</p>
@@ -61,7 +61,7 @@ export function SimpleMarkdown({ content, className = "" }: SimpleMarkdownProps)
           ) : null
         ),
         strong: ({ children }) => (
-          <strong className="font-semibold text-foreground">{children}</strong>
+          <strong className="font-semibold text-foreground/70">{children}</strong>
         ),
         em: ({ children }) => <em className="italic">{children}</em>,
         code: ({ children }) => (
@@ -92,7 +92,7 @@ export function SimpleMarkdown({ content, className = "" }: SimpleMarkdownProps)
         tbody: ({ children }) => <tbody>{children}</tbody>,
         tr: ({ children }) => <tr className="border-b border-border/50">{children}</tr>,
         th: ({ children }) => (
-          <th className="px-2 py-1.5 text-left font-medium text-foreground">{children}</th>
+          <th className="px-2 py-1.5 text-left font-medium text-foreground/70">{children}</th>
         ),
         td: ({ children }) => (
           <td className="px-2 py-1.5 text-muted-foreground">{children}</td>
